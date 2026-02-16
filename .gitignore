@@ -1,0 +1,12 @@
+# Python cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local runtime outputs
+cache/
+resume_output/*.pdf
+
+# IDE files
+.idea/
+.vscode/

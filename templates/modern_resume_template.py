@@ -1,0 +1,412 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Modern resume PDF template for resume-tailor skill."""
+
+from __future__ import annotations
+
+import re
+import sys
+from pathlib import Path
+from typing import Any
+
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT, TA_RIGHT
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import inch, mm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.platypus import (
+    HRFlowable,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
+
+
+def register_fonts() -> tuple[str, str, str]:
+    """优先注册 Calibri，失败时回退到 Helvetica。"""
+    try:
+        calibri = Path(r"C:\Windows\Fonts\calibri.ttf")
+        calibri_bold = Path(r"C:\Windows\Fonts\calibrib.ttf")
+        calibri_italic = Path(r"C:\Windows\Fonts\calibrii.ttf")
+
+        if calibri.exists() and calibri_bold.exists() and calibri_italic.exists():
+            pdfmetrics.registerFont(TTFont("Calibri", str(calibri)))
+            pdfmetrics.registerFont(TTFont("Calibri-Bold", str(calibri_bold)))
+            pdfmetrics.registerFont(TTFont("Calibri-Italic", str(calibri_italic)))
+            pdfmetrics.registerFontFamily(
+                "Calibri",
+                normal="Calibri",
+                bold="Calibri-Bold",
+                italic="Calibri-Italic",
+                boldItalic="Calibri-Bold",
+            )
+            return "Calibri", "Calibri-Bold", "Calibri-Italic"
+    except Exception:
+        pass
+
+    return "Helvetica", "Helvetica-Bold", "Helvetica-Oblique"
+
+
+def create_styles(base_font: str, bold_font: str) -> dict[str, ParagraphStyle]:
+    """创建简历排版样式。"""
+    styles = getSampleStyleSheet()
+
+    custom_styles: dict[str, ParagraphStyle] = {}
+
+    custom_styles["Header"] = ParagraphStyle(
+        "Header",
+        parent=styles["Normal"],
+        fontSize=15,
+        textColor=colors.black,
+        spaceAfter=9,
+        alignment=TA_CENTER,
+        fontName=bold_font,
+    )
+
+    custom_styles["Contact"] = ParagraphStyle(
+        "Contact",
+        parent=styles["Normal"],
+        fontSize=10.5,
+        spaceAfter=11,
+        alignment=TA_CENTER,
+        fontName=base_font,
+    )
+
+    custom_styles["Section"] = ParagraphStyle(
+        "Section",
+        parent=styles["Normal"],
+        fontSize=10.6,
+        textColor=colors.black,
+        spaceBefore=8.5,
+        spaceAfter=5,
+        fontName=bold_font,
+        leading=13,
+    )
+
+    custom_styles["Body"] = ParagraphStyle(
+        "Body",
+        parent=styles["Normal"],
+        fontSize=9.85,
+        leading=12.2,
+        spaceAfter=6.2,
+        alignment=TA_JUSTIFY,
+        fontName=base_font,
+    )
+
+    custom_styles["CompanyTitle"] = ParagraphStyle(
+        "CompanyTitle",
+        parent=styles["Normal"],
+        fontSize=9.9,
+        leading=12,
+        spaceAfter=4.5,
+        fontName=base_font,
+    )
+
+    custom_styles["CompanyName"] = ParagraphStyle(
+        "CompanyName",
+        parent=styles["Normal"],
+        fontSize=10.2,
+        leading=12.5,
+        spaceAfter=2.5,
+        fontName=bold_font,
+        alignment=TA_LEFT,
+    )
+
+    custom_styles["DatesRight"] = ParagraphStyle(
+        "DatesRight",
+        parent=styles["Normal"],
+        fontSize=9.9,
+        leading=12,
+        fontName=base_font,
+        alignment=TA_RIGHT,
+    )
+
+    custom_styles["JobDetail"] = ParagraphStyle(
+        "JobDetail",
+        parent=styles["Normal"],
+        fontSize=9.9,
+        leading=12,
+        spaceAfter=4.5,
+        fontName=base_font,
+        alignment=TA_LEFT,
+    )
+
+    custom_styles["Bullet"] = ParagraphStyle(
+        "Bullet",
+        parent=styles["Normal"],
+        fontSize=9.85,
+        leading=12.2,
+        leftIndent=15,
+        spaceAfter=3.2,
+        bulletIndent=5,
+        fontName=base_font,
+        alignment=TA_LEFT,
+    )
+
+    custom_styles["Education"] = ParagraphStyle(
+        "Education",
+        parent=styles["Normal"],
+        fontSize=9.9,
+        leading=12,
+        spaceAfter=3.5,
+        fontName=base_font,
+    )
+
+    custom_styles["EducationDegree"] = ParagraphStyle(
+        "EducationDegree",
+        parent=styles["Normal"],
+        fontSize=9.9,
+        leading=12,
+        spaceAfter=3.5,
+        fontName=base_font,
+        alignment=TA_LEFT,
+    )
+
+    return custom_styles
+
+
+def validate_content(content_dict: dict[str, Any]) -> None:
+    required = ("name", "contact", "summary", "skills", "experience", "education")
+    missing = [key for key in required if key not in content_dict]
+    if missing:
+        raise ValueError(f"内容缺少必填字段: {', '.join(missing)}")
+
+    if not isinstance(content_dict["skills"], list):
+        raise ValueError("`skills` 必须是数组。")
+    if not isinstance(content_dict["experience"], list):
+        raise ValueError("`experience` 必须是数组。")
+    if not isinstance(content_dict["education"], list):
+        raise ValueError("`education` 必须是数组。")
+
+
+def infer_position_from_filename(output_name: str) -> str:
+    """
+    从文件名推断岗位方向。
+    命名规则: {MM}_{DD}_{Name}_{Position}_resume.pdf
+    """
+    stem = Path(output_name).stem
+    if not stem.endswith("_resume"):
+        return "Uncategorized"
+
+    core = stem[: -len("_resume")]
+    parts = core.split("_")
+    if len(parts) < 4:
+        return "Uncategorized"
+
+    position = "_".join(parts[3:]).strip("_")
+    return position or "Uncategorized"
+
+
+def get_next_backup_path(backup_dir: Path, output_stem: str) -> Path:
+    pattern = re.compile(rf"^{re.escape(output_stem)}_old_(\d+)\.pdf$", re.IGNORECASE)
+    max_number = 0
+
+    for file in backup_dir.glob(f"{output_stem}_old_*.pdf"):
+        match = pattern.match(file.name)
+        if match:
+            max_number = max(max_number, int(match.group(1)))
+
+    return backup_dir / f"{output_stem}_old_{max_number + 1}.pdf"
+
+
+def archive_root_pdfs(
+    base_output_dir: Path, exclude_names: set[str] | None = None
+) -> list[Path]:
+    """将 output 根目录中的历史 PDF 统一转移到 backup 目录。"""
+    excluded = exclude_names or set()
+    archived_paths: list[Path] = []
+
+    for pdf_file in sorted(base_output_dir.glob("*.pdf")):
+        if pdf_file.name in excluded:
+            continue
+
+        position = infer_position_from_filename(pdf_file.name)
+        backup_dir = base_output_dir / "backup" / position
+        backup_dir.mkdir(parents=True, exist_ok=True)
+
+        backup_path = get_next_backup_path(backup_dir, pdf_file.stem)
+        pdf_file.replace(backup_path)
+        archived_paths.append(backup_path)
+        print(f"✓ 旧文件已备份到: {backup_path}")
+
+    return archived_paths
+
+
+def generate_resume(
+    output_file: str, content_dict: dict[str, Any], base_dir: str = "resume_output"
+) -> str:
+    """根据结构化内容生成简历 PDF。"""
+    output_name = Path(output_file).name
+    if output_name != output_file:
+        raise ValueError("output_file 只能是文件名，不能包含路径。")
+
+    validate_content(content_dict)
+
+    base_output_dir = Path(base_dir)
+    base_output_dir.mkdir(parents=True, exist_ok=True)
+
+    output_path = base_output_dir / output_name
+    output_stem = output_path.stem
+    temp_output_path = base_output_dir / f".{output_stem}.tmp.pdf"
+
+    if temp_output_path.exists():
+        temp_output_path.unlink()
+
+    base_font, bold_font, _ = register_fonts()
+    styles = create_styles(base_font, bold_font)
+
+    doc = SimpleDocTemplate(
+        str(temp_output_path),
+        pagesize=A4,
+        topMargin=5 * mm,
+        bottomMargin=5 * mm,
+        leftMargin=0.6 * inch,
+        rightMargin=0.6 * inch,
+    )
+
+    story = []
+
+    story.append(Paragraph(content_dict["name"], styles["Header"]))
+    story.append(Paragraph(content_dict["contact"], styles["Contact"]))
+
+    story.append(Paragraph("SUMMARY", styles["Section"]))
+    story.append(
+        HRFlowable(width="100%", thickness=1, color=colors.black, spaceAfter=4)
+    )
+    story.append(Paragraph(content_dict["summary"], styles["Body"]))
+
+    story.append(Paragraph("TECHNICAL SKILLS", styles["Section"]))
+    story.append(
+        HRFlowable(width="100%", thickness=1, color=colors.black, spaceAfter=4)
+    )
+    for skill in content_dict["skills"]:
+        category = skill.get("category", "Skill")
+        items = skill.get("items", "")
+        story.append(Paragraph(f"<b>{category}:</b> {items}", styles["Body"]))
+
+    story.append(Paragraph("PROFESSIONAL EXPERIENCE", styles["Section"]))
+    story.append(
+        HRFlowable(width="100%", thickness=1, color=colors.black, spaceAfter=4)
+    )
+
+    for index, job in enumerate(content_dict["experience"]):
+        company = job.get("company", "")
+        title = job.get("title", "")
+        location = job.get("location", "")
+        dates = job.get("dates", "")
+        bullets = job.get("bullets", [])
+
+        company_dates_row = Table(
+            [
+                [
+                    Paragraph(company, styles["CompanyName"]),
+                    Paragraph(dates, styles["DatesRight"]),
+                ]
+            ],
+            colWidths=[doc.width * 0.72, doc.width * 0.28],
+        )
+        company_dates_row.setStyle(
+            TableStyle(
+                [
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                    ("TOPPADDING", (0, 0), (-1, -1), 0),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ]
+            )
+        )
+        story.append(company_dates_row)
+
+        detail_parts = [part for part in (title, location) if part]
+        detail_line = " | ".join(detail_parts)
+        if detail_line:
+            story.append(Paragraph(detail_line, styles["JobDetail"]))
+
+        for bullet in bullets:
+            story.append(Paragraph(f"• {bullet}", styles["Bullet"]))
+
+        if index < len(content_dict["experience"]) - 1:
+            story.append(Spacer(1, 0.05 * inch))
+
+    story.append(Paragraph("EDUCATION", styles["Section"]))
+    story.append(
+        HRFlowable(width="100%", thickness=1, color=colors.black, spaceAfter=4)
+    )
+
+    for edu in content_dict["education"]:
+        school = edu.get("school", "")
+        degree = edu.get("degree", "")
+        dates = edu.get("dates", "")
+
+        school_dates_row = Table(
+            [
+                [
+                    Paragraph(f"<b>{school}</b>", styles["Education"]),
+                    Paragraph(dates, styles["DatesRight"]),
+                ]
+            ],
+            colWidths=[doc.width * 0.72, doc.width * 0.28],
+        )
+        school_dates_row.setStyle(
+            TableStyle(
+                [
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                    ("TOPPADDING", (0, 0), (-1, -1), 0),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ]
+            )
+        )
+        story.append(school_dates_row)
+
+        if degree:
+            story.append(Paragraph(degree, styles["EducationDegree"]))
+
+    doc.build(story)
+
+    archive_root_pdfs(base_output_dir, exclude_names={temp_output_path.name})
+    temp_output_path.replace(output_path)
+
+    print(f"✓ PDF 生成完成: {output_path}")
+    print(f"✓ 使用字体: {base_font}")
+    return str(output_path)
+
+
+if __name__ == "__main__":
+    example_content = {
+        "name": "FULL NAME",
+        "contact": "City, State • +1 000-000-0000 • email@example.com • linkedin.com/in/your-id",
+        "summary": "Experienced engineer with strengths in distributed systems and data platforms.",
+        "skills": [
+            {"category": "Programming Languages", "items": "Python, Go, Java"},
+            {"category": "Data Platform", "items": "Kafka, Spark, Hadoop"},
+        ],
+        "experience": [
+            {
+                "company": "Example Corp",
+                "title": "Software Engineer",
+                "location": "Seattle, WA",
+                "dates": "2023 - Present",
+                "bullets": [
+                    "Built a streaming pipeline and reduced data latency by 35%.",
+                    "Improved service reliability to 99.95% through automated failover.",
+                ],
+            }
+        ],
+        "education": [
+            {
+                "school": "Example University",
+                "degree": "M.S. in Computer Science",
+                "dates": "2021 - 2023",
+            }
+        ],
+    }
+
+    output_name = sys.argv[1] if len(sys.argv) > 1 else "resume_example.pdf"
+    generate_resume(output_name, example_content, base_dir="resume_output/test")
