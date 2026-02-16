@@ -1,5 +1,289 @@
 # resume-tailor
 
+An OpenCode Skill for job-targeted resume optimization. Quickly generate ATS-friendly single-page A4 PDF resumes based on target JD.
+
+## Core Capabilities
+
+- ✅ **ATS Keyword Alignment**: Automatically extract high-frequency JD keywords and integrate them into resume expressions
+- ✅ **Job Match Diagnosis**: Analyze matching level between existing experience and target position (P1/P2/P3) and gaps
+- ✅ **Smart Content Compression**: Optimize expression and compress to single page without fabricating facts
+- ✅ **PDF Quality Assurance**: Generate A4 PDF with extractable text and auto-check format and text layer
+- ✅ **AI Trace Removal**: Integrate `humanizer` skill to ensure natural expression and avoid common AI clichés
+
+## Usage Scenarios
+
+This skill automatically activates when you provide the following to OpenCode Agent:
+
+- Target position JD (Job Description)
+- Your existing resume (PDF / DOCX / Markdown all supported)
+- Explicitly request: ATS keyword alignment, job match optimization, compress to single page, or deliver PDF
+
+Typical trigger examples:
+
+```
+I have a Product Manager JD and my existing resume, help me optimize it into an ATS-friendly single-page PDF.
+```
+
+```
+Based on this JD, analyze my resume match level and generate a targeted optimized version.
+```
+
+## Installation
+
+### Method 1: Agent Auto-Install (Recommended)
+
+Send this message directly to OpenCode Agent:
+
+```
+Please read and strictly execute docs/guide/installation.md to complete resume-tailor dependency skill installation and verification.
+```
+
+Agent will automatically:
+1. Clone this repo to `~/.config/opencode/skills/resume-tailor`
+2. Install 3 dependent skills (`pdf`, `docx`, `humanizer`)
+3. Install Python dependencies (`reportlab`, `pdfplumber`, `pytest`)
+4. Verify all components work properly
+
+**Remote Repo Install**: If using GitHub, you can give Agent the raw link:
+
+```
+https://raw.githubusercontent.com/<owner>/<repo>/<branch>/docs/guide/installation.md
+```
+
+**OpenCode Command Entry**: If you use OpenCode command system, you can directly execute:
+
+```
+/install-skill-deps
+```
+
+---
+
+### Method 2: Manual Installation
+
+**1. Clone This Repo**
+
+```bash
+git clone <repository-url> ~/.config/opencode/skills/resume-tailor
+cd ~/.config/opencode/skills/resume-tailor
+```
+
+**2. Install Dependent Skills**
+
+Ensure the following 3 skills are installed to OpenCode skill directory:
+
+| Skill | Source | Purpose |
+|-------|--------|---------|
+| `pdf` | https://github.com/anthropics/skills | Read & generate PDF |
+| `docx` | https://github.com/anthropics/skills | Read `.docx` resumes |
+| `humanizer` | https://github.com/blader/humanizer | Remove AI trace expressions |
+
+```bash
+# Install pdf and docx
+cd ~/.config/opencode/skills
+git clone https://github.com/anthropics/skills anthropic-skills
+ln -s anthropic-skills/pdf pdf
+ln -s anthropic-skills/docx docx
+
+# Install humanizer
+git clone https://github.com/blader/humanizer humanizer
+```
+
+**3. Install Python Dependencies**
+
+```bash
+cd ~/.config/opencode/skills/resume-tailor
+py -3 -m pip install -r requirements.txt
+```
+
+**4. Restart OpenCode**
+
+Close and reopen OpenCode session, skill will take effect.
+
+## Usage Flow
+
+After skill activation, it automatically executes the following flow (no manual operation needed):
+
+### 1. **JD Diagnosis**
+- Analyze match level between your existing resume and target JD
+- Output P1 (strong match), P2 (medium match), P3 (weak match) evidence chains
+- Identify key capability gaps
+
+### 2. **Iterative Optimization**
+- Only change 1 decision point per round (use visual selection box)
+- Auto-align ATS keywords and optimize expressions
+- Compress redundant content, focus on job relevance
+
+### 3. **Volume Gate**
+- Ensure content meets single-page A4 target before outputting full review text
+- Call `humanizer` skill to remove AI traces
+
+### 4. **PDF Generation and QC**
+- Generate A4 PDF after your approval
+- Auto-check: page count, size, text extractability, HTML leakage
+- Fine-tune and regenerate if needed
+
+### 5. **Delivery and Cache**
+- Final PDF saved to `resume_output/`
+- Historical versions auto-backed up to `resume_output/backup/`
+- Update user profile cache for next use
+
+**Core Principles**:
+- ✅ No fabrication (only rewrite, rearrange, compress)
+- ✅ Review before export (must obtain explicit approval)
+- ✅ One question at a time (only one decision point per round)
+
+---
+
+## Project Structure
+
+```
+resume-tailor/
+├── SKILL.md                         # Skill main doc and workflow constraints
+├── scripts/                         # Core scripts
+│   ├── resume_cache_manager.py      # Cache management (reset/init/update)
+│   ├── resume_md_to_json.py         # Markdown to JSON
+│   ├── generate_final_resume.py     # PDF generation entry
+│   └── check_pdf_quality.py         # PDF QC
+├── templates/                       # PDF layout templates
+│   ├── modern_resume_template.py    # ReportLab template
+│   └── README.md                    # Template docs
+├── references/                      # References
+│   ├── execution-checklist.md       # Full process checklist
+│   ├── ats-keywords-strategy.md     # ATS strategy
+│   ├── profile-cache-template.md    # User profile cache template
+│   └── resume-working-schema.md     # Working cache structure spec
+├── tests/                           # Tests
+│   ├── test_resume_cache_flow.py
+│   └── test_output_backup_policy.py
+├── docs/guide/                      # Installation guide
+│   └── installation.md              # Agent-executable install flow
+├── install/                         # Install manifest
+│   └── agent-install.yaml           # Machine-readable install manifest
+├── .opencode/command/               # OpenCode commands
+│   └── install-skill-deps.md        # Command-based install entry
+└── requirements.txt                 # Python dependencies
+```
+
+## Development & Testing
+
+### Run Tests
+
+```bash
+cd ~/.config/opencode/skills/resume-tailor
+pytest
+```
+
+### Verify Script Behavior
+
+You can also run tools under `scripts/` individually for debugging:
+
+```bash
+# Cache management
+python scripts/resume_cache_manager.py reset
+python scripts/resume_cache_manager.py init
+
+# Markdown to JSON
+python scripts/resume_md_to_json.py cache/resume-working.md -o output.json
+
+# Generate PDF
+python scripts/generate_final_resume.py --input-md cache/resume-working.md
+
+# QC PDF
+python scripts/check_pdf_quality.py resume_output/resume_final.pdf
+```
+
+---
+
+## Technical Notes
+
+### Python Dependencies
+
+- `reportlab`: PDF generation
+- `pdfplumber`: PDF quality check
+- `pytest`: Test execution
+
+All dependencies maintained in `requirements.txt`.
+
+### Fonts & Cross-Platform
+
+- Template prioritizes Windows **Calibri** font
+- If Calibri doesn't exist on system, auto-fallback to **Helvetica** (doesn't affect PDF generation)
+- For fixed font effect, recommend installing equivalent font on target system before export
+
+### Cache & Output Directories
+
+Skill directory itself stores no personalized data. All cache and output files are in workspace:
+
+```
+Workspace/
+├── resume_output/
+│   ├── resume_final.pdf         # Current latest PDF
+│   └── backup/                  # Historical PDF backups
+└── cache/
+    ├── user-profile.md          # Long-term preference cache
+    └── resume-working.md        # Current session resume body
+```
+
+---
+
+## Open Source & Contribution
+
+### License
+
+MIT License - See `LICENSE` file
+
+### Privacy & Security
+
+- ✅ This repo contains no personal privacy data (contact info, real resume samples, etc.)
+- ✅ `.gitignore` configured to exclude `cache/` and `resume_output/**/*.pdf`
+- ✅ Only keep reusable rules, scripts, templates and references
+
+### Contribution Guidelines
+
+Welcome to submit Issues and Pull Requests to improve this Skill!
+
+---
+
+## FAQ
+
+**Q: Why install 3 dependent skills?**
+
+A: 
+- `pdf`: Read existing PDF resumes and generate final PDF
+- `docx`: Read `.docx` format resumes
+- `humanizer`: Remove common AI-generated text traces, enhance natural expression
+
+**Q: Can generated PDF be submitted directly?**
+
+A: Yes. Generated PDF auto-checks the following:
+- ✅ A4 size (210mm x 297mm)
+- ✅ Single page
+- ✅ Text extractable (supports ATS systems)
+- ✅ No HTML tag leakage
+
+**Q: How to customize PDF template style?**
+
+A: Edit `templates/modern_resume_template.py`, a ReportLab-based Python template. See `templates/README.md`.
+
+**Q: Will skill save my resume?**
+
+A: No. Skill directory itself is stateless. All cache and output files are in your workspace directory (`resume_output/` and `cache/`), won't commit to Git repo.
+
+---
+
+## Acknowledgments
+
+This skill references the following projects and best practices:
+
+- [Anthropic Skills](https://github.com/anthropics/skills) - `pdf` and `docx` skills
+- [blader/humanizer](https://github.com/blader/humanizer) - AI trace removal
+- [oh-my-opencode](https://github.com/anomalyco/oh-my-opencode) - Agent auto-install pattern
+
+---
+---
+
+# resume-tailor
+
 一个用于岗位定向简历优化的 OpenCode Skill，帮助你根据目标 JD 快速生成 ATS 友好的单页 A4 PDF 简历。
 
 ## 核心能力

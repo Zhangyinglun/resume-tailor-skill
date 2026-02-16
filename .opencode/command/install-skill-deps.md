@@ -1,16 +1,18 @@
-请执行 resume-tailor 的依赖技能自动安装流程。
+# Install Resume Tailor Skill Dependencies
 
-必做步骤：
+Please execute the automatic installation process for resume-tailor dependency skills.
 
-1. 读取并遵循 `docs/guide/installation.md` 的 `For LLM Agents` 部分。
-2. 读取 `install/agent-install.yaml`，将其中 `sources`、`install_plan`、`post_check` 全量执行。
-3. 对上游仓库使用 `pull-or-clone` 策略，避免目录已存在导致安装失败。
-4. 只安装以下技能：`pdf`、`docx`、`humanizer`。
-5. 明确不安装 `humanizer-zh`。
-6. 必须输出安装报告（版本信息、同步方式、安装结果、post-check 结果）。
+## Required Steps
 
-执行要求：
+1. Read and follow the `For LLM Agents` section in `docs/guide/installation.md`.
+2. Read `install/agent-install.yaml`, and fully execute its `sources`, `install_plan`, and `post_check`.
+3. Use `pull-or-clone` strategy for upstream repositories to avoid installation failures when directories already exist.
+4. Only install the following skills: `pdf`, `docx`, `humanizer`.
+5. Explicitly do not install `humanizer-zh`.
+6. Must output installation report (version info, sync method, installation results, post-check results).
 
-- 默认先做最小可行方案，不修改与安装无关的配置。
-- 遇到失败先重试一次；仍失败时停止并给出可执行修复建议。
-- 禁止在未完成 post-check 的情况下宣称安装成功。
+## Execution Requirements
+
+- Default to minimal viable approach first, do not modify configurations unrelated to installation.
+- Retry once if failure occurs; if still failing, stop and provide actionable fix suggestions.
+- Do not claim installation success without completing post-check.

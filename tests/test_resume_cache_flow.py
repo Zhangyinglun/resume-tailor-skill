@@ -93,39 +93,39 @@ class ResumeCacheFlowTest(unittest.TestCase):
             self.assertFalse(cache_path.exists())
 
     def test_base_template_lifecycle(self):
-        """测试长期模板的完整生命周期。"""
+        """Test complete lifecycle of long-term template."""
         with tempfile.TemporaryDirectory() as tmpdir:
             workspace = Path(tmpdir)
 
-            # 初始时模板不存在
+            # Template does not exist initially
             self.assertFalse(has_base_template(workspace))
 
-            # 初始化长期模板
+            # Initialize long-term template
             template_path = init_base_template_from_text(
                 workspace, SAMPLE_DETAILED_TEMPLATE
             )
             self.assertTrue(template_path.exists())
             self.assertTrue(has_base_template(workspace))
 
-            # 读取模板内容
+            # Read template content
             template_content = read_base_template_markdown(workspace)
             self.assertIn("## SUMMARY", template_content)
             self.assertIn("Experienced backend engineer", template_content)
 
-            # 从模板初始化工作缓存
+            # Initialize working cache from template
             working_path = init_working_from_template(workspace)
             self.assertTrue(working_path.exists())
 
             working_content = working_path.read_text(encoding="utf-8")
             self.assertEqual(template_content, working_content)
 
-            # 清理工作缓存不影响长期模板
+            # Cleanup working cache does not affect long-term template
             cleanup_cache(workspace)
             self.assertFalse(working_path.exists())
             self.assertTrue(template_path.exists())
 
     def test_template_init_without_existing_template_raises_error(self):
-        """测试没有模板时调用 init_working_from_template 会抛出异常。"""
+        """Test that calling init_working_from_template without a template raises an exception."""
         with tempfile.TemporaryDirectory() as tmpdir:
             workspace = Path(tmpdir)
             with self.assertRaises(FileNotFoundError):

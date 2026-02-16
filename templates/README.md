@@ -1,109 +1,109 @@
 # Resume Template - Modern Design
 
-## 概述
+## Overview
 
-`modern_resume_template.py` 是 resume-tailor 的默认 PDF 模板，目标是：
-- A4 单页输出
-- ATS 友好（文本可提取、结构线性）
-- 紧凑且可读（9.5pt 正文）
+`modern_resume_template.py` is the default PDF template for resume-tailor, aiming to:
+- A4 single-page output
+- ATS-friendly (text extractable, linear structure)
+- Compact and readable (9.5pt body text)
 
-## 设计特点
+## Design Features
 
-- 字体：优先 Calibri，不可用时自动回退 Helvetica
-- 头部：姓名与联系方式居中展示
-- 结构：Summary → Technical Skills → Professional Experience → Education
-- 经历区：第一行 Company（左）与 Dates（右）；第二行 Title | Location
+- Font: Prioritize Calibri, auto-fallback to Helvetica if unavailable
+- Header: Name and contact info centered display
+- Structure: Summary → Technical Skills → Professional Experience → Education
+- Experience section: First line Company (left) and Dates (right); second line Title | Location
 
-## 跨平台字体说明
+## Cross-platform Font Notes
 
-- 在 Windows 上会优先读取 `C:/Windows/Fonts/` 下的 Calibri 字体文件。
-- 在 macOS/Linux 或未安装 Calibri 的环境中，会自动回退到 Helvetica。
-- 回退不会阻塞生成流程，但不同平台的字形宽度可能导致行数略有差异。
+- On Windows, Calibri font files will be prioritized from `C:/Windows/Fonts/`.
+- On macOS/Linux or environments without Calibri installed, will auto-fallback to Helvetica.
+- Fallback will not block generation process, but different platform font widths may cause slight variations in line count.
 
-## 页面与排版参数
+## Page and Layout Parameters
 
-- 页面：A4 (210mm x 297mm)
-- 页边距：上 5mm，下 5mm，左右 0.6in
-- 字号：正文 9.5pt，章节标题 10.5pt，姓名 15pt
-- 行距：正文 11pt
+- Page: A4 (210mm x 297mm)
+- Margins: Top 5mm, Bottom 5mm, Left/Right 0.6in
+- Font size: Body 9.5pt, Section headers 10.5pt, Name 15pt
+- Line spacing: Body 11pt
 
-## 生成方式
+## Generation Methods
 
-### 方式 1：Markdown 工作缓存（推荐）
+### Method 1: Markdown Working Cache (Recommended)
 
 ```bash
 py -3 scripts/generate_final_resume.py --input-md cache/resume-working.md --output-file 02_10_Name_Backend_Engineer_resume.pdf --output-dir resume_output
 ```
 
-### 方式 2：JSON 数据
+### Method 2: JSON Data
 
 ```bash
 py -3 scripts/generate_final_resume.py --input-json resume_content.json --output-file 02_10_Name_Backend_Engineer_resume.pdf --output-dir resume_output
 ```
 
-## 工作缓存相关脚本
+## Working Cache Related Scripts
 
-### 长期模板管理（新增）
+### Long-term Template Management (New)
 
-**一次性初始化长期模板**（首次使用或更新通用简历）：
+**One-time initialization of long-term template** (first use or updating general resume):
 
 ```bash
 py -3 scripts/resume_cache_manager.py template-init --workspace . --input my_full_resume.txt
 ```
 
-**检查模板是否存在**：
+**Check if template exists**:
 
 ```bash
 py -3 scripts/resume_cache_manager.py template-check --workspace .
 ```
 
-**查看模板内容**：
+**View template content**:
 
 ```bash
 py -3 scripts/resume_cache_manager.py template-show --workspace .
 ```
 
-**按 JD 生成初版简历（简化流程）**：
+**Generate initial resume based on JD (simplified workflow)**:
 
 ```text
-步骤 1：全量读取 cache/base-resume.md
-步骤 2：模型根据 JD 生成初版 cache/resume-working.md
-步骤 3：根据问答不断更新 cache/resume-working.md
+Step 1: Read full `cache/base-resume.md`
+Step 2: Model generates initial `cache/resume-working.md` based on JD
+Step 3: Continuously update `cache/resume-working.md` based on Q&A
 ```
 
-### 临时工作缓存管理
+### Temporary Working Cache Management
 
-- 初始化缓存：
+- Initialize cache:
 
 ```bash
 py -3 scripts/resume_cache_manager.py init --workspace . --input raw_resume.txt
 ```
 
-- 更新缓存：
+- Update cache:
 
 ```bash
 py -3 scripts/resume_cache_manager.py update --workspace . --input reviewed_resume.md
 ```
 
-- 清理缓存（可选，手动触发）：
+- Cleanup cache (optional, manual trigger):
 
 ```bash
 py -3 scripts/resume_cache_manager.py cleanup --workspace .
 ```
 
-## 备份策略
+## Backup Strategy
 
-每次生成新简历前，`resume_output/` 根目录中已有的 PDF 都会自动移动到：
+Before each new resume generation, existing PDFs in `resume_output/` root directory will be automatically moved to:
 
 `resume_output/backup/{Position}/{name}_old_N.pdf`
 
-其中 `{Position}` 从文件名 `{MM}_{DD}_{Name}_{Position}_resume.pdf` 推断，`{name}` 使用原文件名（不含 `.pdf`）。因此生成完成后，`resume_output/` 根目录始终只保留最新一份简历。
+Where `{Position}` is inferred from filename `{MM}_{DD}_{Name}_{Position}_resume.pdf`, `{name}` uses original filename (without `.pdf`). Therefore, after generation completes, `resume_output/` root directory always contains only the latest resume.
 
-## 维护建议
+## Maintenance Recommendations
 
-若内容溢出第二页，按以下顺序调整：
-1. 段后间距
-2. bullet 间距
-3. 行距
-4. 页边距
-5. 字号（不低于 9.5pt）
+If content overflows to second page, adjust in the following order:
+1. Space after paragraph
+2. Bullet spacing
+3. Line spacing
+4. Margins
+5. Font size (not lower than 9.5pt)

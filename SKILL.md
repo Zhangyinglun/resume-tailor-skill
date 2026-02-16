@@ -1,48 +1,48 @@
 ---
 name: resume-tailor
-description: Use when 用户需要基于目标 JD 优化或重写简历，并要求 ATS 关键词对齐、岗位匹配诊断、内容压缩到单页，以及最终交付可提取文本的 A4 PDF。
+description: Use when user provides JD and existing resume, expecting job-targeted optimization, ATS keyword alignment, language polishing, and delivery of a single-page A4 PDF resume.
 ---
 
-# 简历定制 Skill（Resume Tailor）
+# Resume Tailor Skill
 
-## 核心目标
-- **ATS 命中率**：覆盖 JD 高频关键词且保持自然表达。
-- **岗位相关性**：优先呈现最匹配岗位的证据链与量化结果。
-- **交付质量**：输出可提取文本的 A4 PDF，并通过格式质检。
+## Core Objectives
+- **ATS Hit Rate**: Cover high-frequency JD keywords while maintaining natural expression.
+- **Job Relevance**: Prioritize evidence chains and quantified results that best match the position.
+- **Delivery Quality**: Output A4 PDF with extractable text and pass format quality checks.
 
-## 不可违反原则
-- **不编造事实**：只重写、重排、压缩，不新增虚构经历/技术/数据。
-- **先审阅后导出**：导出前必须提供完整审阅稿并获得明确批准。
-- **先过体量门禁再审阅**：内容超限先收敛，再给用户看全文。
-- **一次一问**：每轮只给一个决策点，使用 `question` 工具。
-- **ATS 友好**：不用表格主布局，不用图片替代正文，不把关键信息放页眉页脚。
-- **固定 A4 + 单页**：默认交付 210mm x 297mm、1 页。
-- **仅 PDF 交付**：最终产物只交 PDF。
-- **PDF 动作前先调用 `pdf` skill**：初次生成、微调重生成、最终导出都执行。
+## Inviolable Principles
+- **No Fabrication**: Only rewrite, rearrange, compress—no fictional experience/tech/data.
+- **Review Before Export**: Must provide complete review draft and obtain explicit approval before export.
+- **Pass Volume Gate Before Review**: Reduce content to target length first, then show full text to user.
+- **One Question at a Time**: Only one decision point per round, use `question` tool.
+- **ATS Friendly**: No table-based main layout, no images replacing body text, no key info in headers/footers.
+- **Fixed A4 + Single Page**: Default delivery 210mm x 297mm, 1 page.
+- **PDF Only Delivery**: Final output is PDF only.
+- **Call `pdf` skill before PDF actions**: Execute before initial generation, minor regeneration, or final export.
 
-## Stateless 边界（强制）
-- `resume-tailor` skill 目录只能存放“规则 + 模板 + 脚本 + 参考资料”。
-- 不得在 skill 目录保存任何个性化缓存（用户偏好、历史 JD、联系方式、简历样本）。
-- 统一目录（相对工作区）：
-  - `resume_output/`：当前最新 PDF
-  - `resume_output/backup/`：历史 PDF 备份
-  - `cache/user-profile.md`：长期偏好缓存
-  - `cache/resume-working.md`：当前会话简历正文
+## Stateless Boundary (Mandatory)
+- `resume-tailor` skill directory can only store "rules + templates + scripts + references".
+- No personalized cache (user preferences, historical JDs, contact info, resume samples) in skill directory.
+- Unified directories (relative to workspace):
+  - `resume_output/`: Latest PDF
+  - `resume_output/backup/`: Historical PDF backups
+  - `cache/user-profile.md`: Long-term preference cache
+  - `cache/resume-working.md`: Current session resume body
 
-## 最小执行流程
-1. **会话启动清理**：`scripts/resume_cache_manager.py reset`
-2. **读取模板简历**：`template-check` → `template-show`（不存在则 `template-init`）
-3. **JD 诊断**：输出 P1/P2/P3 匹配与 gap，用户确认后生成初版
-4. **迭代更新**：每轮只改 1 个决策点，确认后 `update`
-5. **体量门禁**：先收敛到单页目标，再输出审阅全文
-6. **QA + 去 AI 化**：调用 `humanizer`，补齐结构/量化/ATS 检查
-7. **PDF 生成与质检**：用户批准后调用 `pdf` 并生成、检测、必要时微调重生
-8. **收尾**：更新画像缓存，保留工作缓存作为后续基线
+## Minimum Execution Flow
+1. **Session Startup Cleanup**: `scripts/resume_cache_manager.py reset`
+2. **Read Template Resume**: `template-check` → `template-show` (if not exists, then `template-init`)
+3. **JD Diagnosis**: Output P1/P2/P3 matches and gaps, generate initial version after user confirmation
+4. **Iterative Updates**: Only change 1 decision point per round, `update` after confirmation
+5. **Volume Gate**: First reduce to single-page target, then output full review text
+6. **QA + Dehumanization**: Call `humanizer`, complete structure/quantification/ATS checks
+7. **PDF Generation and QC**: After user approval, call `pdf` and generate, detect, re-adjust if needed
+8. **Wrap-up**: Update profile cache, keep working cache as baseline for future sessions
 
-完整检查项与阈值见 `references/execution-checklist.md`。
+Complete checklist and thresholds in `references/execution-checklist.md`.
 
-## 固定模板基线（逻辑结构）
-始终按以下模块顺序组织内容：
+## Fixed Template Baseline (Logical Structure)
+Always organize content in the following module order:
 
 ```markdown
 Header
@@ -52,26 +52,26 @@ Professional Experience
 Education
 ```
 
-## 脚本职责边界
-- `scripts/resume_cache_manager.py`：管理 `cache/resume-working.md` 的 reset/init/update/show（`cleanup` 仅手动按需使用），以及 `cache/base-resume.md` 模板的 template-init/template-use/template-show/template-check。
-- `scripts/resume_md_to_json.py`：把标准化 Markdown 转为模板输入 JSON。
-- `scripts/generate_final_resume.py`：接收 `--input-md` 或 `--input-json` 并生成最终 PDF。
-- `scripts/check_pdf_quality.py`：做通用格式与文本质量检查。
-- `templates/modern_resume_template.py`：仅负责 PDF 排版与导出。
+## Script Responsibility Boundaries
+- `scripts/resume_cache_manager.py`: Manage `cache/resume-working.md` reset/init/update/show (`cleanup` only manual as needed), and `cache/base-resume.md` template-init/template-use/template-show/template-check.
+- `scripts/resume_md_to_json.py`: Convert standardized Markdown to template input JSON.
+- `scripts/generate_final_resume.py`: Accept `--input-md` or `--input-json` and generate final PDF.
+- `scripts/check_pdf_quality.py`: Perform general format and text quality checks.
+- `templates/modern_resume_template.py`: Only responsible for PDF layout and export.
 
-## 依赖 Skill
-- `docx`：读取 `.docx` 简历
-- `pdf`：读取 PDF、执行所有 PDF 生成与复检动作
-- `humanizer`：去除 AI 痕迹，提升自然表达
+## Dependent Skills
+- `docx`: Read `.docx` resumes
+- `pdf`: Read PDFs, execute all PDF generation and recheck actions
+- `humanizer`: Remove AI traces, enhance natural expression
 
-## Agent 安装与自动执行入口
-- 安装总入口：`docs/guide/installation.md`
-- 机器可读清单：`install/agent-install.yaml`
-- OpenCode 命令入口：`.opencode/command/install-skill-deps.md`
+## Agent Installation and Auto-Execution Entry
+- Master installation entry: `docs/guide/installation.md`
+- Machine-readable manifest: `install/agent-install.yaml`
+- OpenCode command entry: `.opencode/command/install-skill-deps.md`
 
-## 参考资料
-- 全流程检查与阈值：`references/execution-checklist.md`
-- ATS 策略：`references/ats-keywords-strategy.md`
-- 画像缓存模板：`references/profile-cache-template.md`
-- 工作缓存结构：`references/resume-working-schema.md`
-- 模板说明：`templates/README.md`
+## Reference Materials
+- Full process checklist and thresholds: `references/execution-checklist.md`
+- ATS strategy: `references/ats-keywords-strategy.md`
+- Profile cache template: `references/profile-cache-template.md`
+- Working cache structure: `references/resume-working-schema.md`
+- Template instructions: `templates/README.md`

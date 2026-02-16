@@ -1,98 +1,98 @@
-# 执行检查清单（Execution Checklist）
+# Execution Checklist
 
-## 阶段 0：会话启动
-- 执行 `scripts/resume_cache_manager.py reset`。
-- 记录结果：已删除旧缓存或无旧缓存。
+## Phase 0: Session Startup
+- Execute `scripts/resume_cache_manager.py reset`.
+- Record result: old cache deleted or no old cache found.
 
-## 阶段 1：输入收集与诊断
-1. 检查模板简历：
-   - `template-check`
-   - 不存在则要求用户上传简历并执行 `template-init`
-   - `template-show` 读取模板全文
-2. 收集 JD（文本/URL/文件，必填）。
-3. 输出 P1/P2/P3 分层诊断：
-   - P1：关键要求
-   - P2：重要资质
-   - P3：加分项
-4. 输出 gap 报告：已命中、可迁移、缺口（每项缺口给简短改进建议）。
-5. 先让用户确认诊断结论，再进入初版生成。
+## Phase 1: Input Collection and Diagnosis
+1. Check template resume:
+   - Run `template-check`
+   - If not exists, request user to upload resume and execute `template-init`
+   - Run `template-show` to read full template
+2. Collect JD (text/URL/file, required).
+3. Output P1/P2/P3 tiered diagnosis:
+   - P1: Critical requirements
+   - P2: Important qualifications
+   - P3: Nice-to-haves
+4. Output gap report: matched, transferable, gaps (provide brief improvement suggestions for each gap).
+5. Let user confirm diagnosis conclusion before proceeding to initial version generation.
 
-## 阶段 2：逐条协商修改
-- 每轮只提 1 条建议，等待确认后再下一条。
-- 建议优先级：
-  1. 补齐核心缺失关键词
-  2. 用 JD 原词强化描述
-  3. 调整内容顺序（相关内容前置）
-  4. 删减低相关内容
-- 每轮确认后都执行 `scripts/resume_cache_manager.py update`。
+## Phase 2: Iterative Negotiation
+- Only suggest 1 item per round, wait for confirmation before the next.
+- Suggestion priority:
+  1. Fill missing core keywords
+  2. Strengthen descriptions with JD original words
+  3. Adjust content order (relevant content first)
+  4. Remove low-relevance content
+- After each round of confirmation, execute `scripts/resume_cache_manager.py update`.
 
-## 阶段 3：审阅前体量门禁
+## Phase 3: Pre-Review Volume Gate
 
-在输出“简历全文预览”前，必须先检测 `cache/resume-working.md`。
+Before outputting "Resume Full Preview", must check `cache/resume-working.md`.
 
-### 体量阈值（任一超限即触发收敛）
-- 总字数：建议 520-760
-- 非空行：建议 32-52
-- Experience bullet 总数：建议 8-14
-- 单条 bullet：不超过 2 行（约 28 个英文词）
+### Volume Thresholds (triggers consolidation if any exceeded)
+- Total word count: recommended 520-760
+- Non-empty lines: recommended 32-52
+- Total experience bullets: recommended 8-14
+- Single bullet: no more than 2 lines (~28 English words)
 
-### 收敛顺序（必须按序）
-1. 删除低相关或重复信息
-2. 合并同类 bullet
-3. 压缩句式（保留四要素：action + keyword + method/tool + result）
+### Consolidation Order (must follow sequence)
+1. Delete low-relevance or duplicate information
+2. Merge similar bullets
+3. Compress sentence structure (keep four elements: action + keyword + method/tool + result)
 
-### 收敛约束
-- 不得编造事实。
-- 不得删除关键资质（联系方式、核心技能、最高相关经历）。
-- 必须保留 JD 核心关键词命中与量化结果。
+### Consolidation Constraints
+- Must not fabricate facts.
+- Must not delete key qualifications (contact info, core skills, highest relevant experience).
+- Must retain JD core keyword matches and quantified results.
 
-### 审阅稿附带信息
-- 原始体量
-- 当前体量
-- 删减/合并摘要
-- 保留关键词清单
+### Review Draft Attached Information
+- Original volume
+- Current volume
+- Deletion/merge summary
+- Retained keywords list
 
-## 阶段 4：QA 与去 AI 化
+## Phase 4: QA and De-AI
 
-进入排版前，输出 QA 报告并覆盖以下 4 类：
-1. 结构逻辑：Summary 聚焦度、证据链、时间线一致性
-2. 自然表达：调用 `humanizer`
-3. 量化结果：每条经历检查四要素完整性
-4. ATS 细节：关键词原词命中、时态统一、联系信息完整
+Before layout, output QA report covering these 4 categories:
+1. Structural logic: Summary focus, evidence chain, timeline consistency
+2. Natural expression: call `humanizer`
+3. Quantified results: check four-element completeness for each experience
+4. ATS details: original keyword match, tense consistency, complete contact info
 
-注意：输出“简历全文预览”时，直接读取 `cache/resume-working.md`，不得凭记忆重构。
+Note: When outputting "Resume Full Preview", read directly from `cache/resume-working.md`, do not reconstruct from memory.
 
-## 阶段 5：PDF 生成与质检
-1. 用户明确批准全文后再生成。
-2. 先调用 `pdf` skill，再生成 PDF。
-3. 优先命令：
+## Phase 5: PDF Generation and Quality Check
+1. Generate only after user explicitly approves full text.
+2. Call `pdf` skill first, then generate PDF.
+3. Priority command:
    - `scripts/generate_final_resume.py --input-md cache/resume-working.md --output-file ... --output-dir resume_output`
-4. 质检必须覆盖：
+4. Quality check must cover:
    - A4
-   - 1 页
-   - 模块完整性
-   - 文本层可提取
-   - HTML 标签泄漏
-   - 底部留白 3-8mm
-5. 不通过则微调并重生成，直到通过。
+   - 1 page
+   - Module completeness
+   - Text layer extractable
+   - No HTML tag leakage
+   - Bottom margin 3-8mm
+5. If not passing, fine-tune and regenerate until passing.
 
-## 阶段 6：收尾
-1. 更新 `cache/user-profile.md`（长期偏好与方向日志）。
-2. 保留 `cache/resume-working.md` 作为后续迭代基线。
-3. 用户要求时再提供延伸建议（面试要点、Cover Letter 开头、Gap 应对）。
-4. 提醒用户复核联系方式与敏感信息。
+## Phase 6: Wrap-up
+1. Update `cache/user-profile.md` (long-term preference and direction log).
+2. Retain `cache/resume-working.md` as baseline for future iterations.
+3. Provide extended suggestions only when user requests (interview points, cover letter opening, gap addressing).
+4. Remind user to review contact info and sensitive information.
 
-## 特殊场景策略
+## Special Scenario Strategies
 
-### 职业转型
-- 保留时间线，同时前置目标岗位相关能力与代表项目。
-- 用“可迁移技能映射”连接原岗位和目标岗位关键词。
+### Career Transition
+- Retain timeline, while prioritizing target-position-relevant capabilities and representative projects.
+- Use "transferable skills mapping" to connect original position and target position keywords.
 
-### 应届生 / 早期职业
-- 全职经历不足时可前置 Education。
-- 用实习、课程项目、竞赛、开源贡献补足证据链。
+### New Graduate / Early Career
+- If insufficient full-time experience, prioritize Education section first.
+- Supplement evidence chain with internships, course projects, competitions, open source contributions.
 
-### 高管 / 资深管理者
-- 优先展示战略影响、组织升级、跨部门协同成果。
-- 明确团队规模、预算、营收增长、利润改善。
-- 信息密度很高且必要时可放宽到 2 页，但仍需 ATS 可解析。
+### Executive / Senior Management
+- Prioritize strategic impact, organizational upgrades, cross-functional collaboration outcomes.
+- Specify team size, budget, revenue growth, profit improvement.
+- Information density is very high and may extend to 2 pages if necessary, but must remain ATS-parseable.

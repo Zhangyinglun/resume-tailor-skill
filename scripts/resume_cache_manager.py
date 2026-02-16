@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""管理简历工作缓存（Markdown）。"""
+"""Manage resume working cache (Markdown format)."""
 
 from __future__ import annotations
 
@@ -95,9 +95,9 @@ def normalize_resume_text_to_markdown(raw_text: str) -> str:
     name, contact = _extract_header(raw_text)
     sections = _extract_sections(raw_text)
 
-    summary_text = " ".join(sections["summary"]).strip() or "[待补充 Summary]"
+    summary_text = " ".join(sections["summary"]).strip() or "[To be filled: Summary]"
 
-    skill_lines = sections["skills"] or ["Core: [待补充技能]"]
+    skill_lines = sections["skills"] or ["Core: [To be filled: Skills]"]
     normalized_skills = []
     for line in skill_lines:
         cleaned = line.lstrip("- ").strip()
@@ -115,12 +115,15 @@ def normalize_resume_text_to_markdown(raw_text: str) -> str:
             line.lstrip("- ").strip() for line in experience_lines[1:] if line.strip()
         ]
         if not bullets:
-            bullets = ["[待补充经历要点]"]
+            bullets = ["[To be filled: Experience details]"]
         for bullet in bullets:
             experience_block.append(f"- {bullet}")
     else:
         experience_block.extend(
-            ["### [Company | Title | Location | Dates]", "- [待补充经历要点]"]
+            [
+                "### [Company | Title | Location | Dates]",
+                "- [To be filled: Experience details]",
+            ]
         )
 
     education_lines = sections["education"]
@@ -174,12 +177,12 @@ def update_cache_from_markdown(workspace: Path, markdown: str) -> Path:
 def read_cache_markdown(workspace: Path) -> str:
     cache_path = get_cache_path(workspace)
     if not cache_path.exists():
-        raise FileNotFoundError(f"缓存不存在: {cache_path}")
+        raise FileNotFoundError(f"Cache does not exist: {cache_path}")
     return cache_path.read_text(encoding="utf-8")
 
 
 def init_base_template_from_text(workspace: Path, raw_text: str) -> Path:
-    """从原始简历文本初始化长期模板。"""
+    """Initialize long-term template from raw resume text."""
     template_path = get_base_template_path(workspace)
     template_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -189,10 +192,10 @@ def init_base_template_from_text(workspace: Path, raw_text: str) -> Path:
 
 
 def init_working_from_template(workspace: Path) -> Path:
-    """从长期模板初始化工作缓存（会被后续子集选择覆盖）。"""
+    """Initialize working cache from long-term template (will be overridden by subsequent subset selection)."""
     template_path = get_base_template_path(workspace)
     if not template_path.exists():
-        raise FileNotFoundError(f"模板不存在: {template_path}")
+        raise FileNotFoundError(f"Template does not exist: {template_path}")
 
     template_content = template_path.read_text(encoding="utf-8")
     cache_path = get_cache_path(workspace)
@@ -202,20 +205,20 @@ def init_working_from_template(workspace: Path) -> Path:
 
 
 def read_base_template_markdown(workspace: Path) -> str:
-    """读取长期模板内容。"""
+    """Read long-term template content."""
     template_path = get_base_template_path(workspace)
     if not template_path.exists():
-        raise FileNotFoundError(f"模板不存在: {template_path}")
+        raise FileNotFoundError(f"Template does not exist: {template_path}")
     return template_path.read_text(encoding="utf-8")
 
 
 def has_base_template(workspace: Path) -> bool:
-    """检查是否存在长期模板。"""
+    """Check if long-term template exists."""
     return get_base_template_path(workspace).exists()
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="管理 resume-working.md 缓存文件")
+    parser = argparse.ArgumentParser(description="Manage resume-working.md cache file")
     parser.add_argument(
         "action",
         choices=[
@@ -229,11 +232,11 @@ def _parse_args() -> argparse.Namespace:
             "template-show",
             "template-check",
         ],
-        help="执行动作",
+        help="Action to execute",
     )
-    parser.add_argument("--workspace", default=".", help="工作区根目录")
+    parser.add_argument("--workspace", default=".", help="Workspace root directory")
     parser.add_argument(
-        "--input", help="输入文件路径（init 使用原始文本，update 使用 markdown）"
+        "--input", help="Input file path (init uses raw text, update uses markdown)"
     )
     return parser.parse_args()
 
@@ -243,17 +246,20 @@ def main() -> int:
     workspace = Path(args.workspace).expanduser().resolve()
 
     if args.action in {"init", "update", "template-init"} and not args.input:
-        print("错误: init/update/template-init 需要 --input 参数", file=sys.stderr)
+        print(
+            "Error: init/update/template-init requires --input parameter",
+            file=sys.stderr,
+        )
         return 1
 
     if args.action == "reset":
         removed = reset_cache_on_start(workspace)
-        print("已删除旧缓存" if removed else "无旧缓存")
+        print("Old cache removed" if removed else "No old cache found")
         return 0
 
     if args.action == "cleanup":
         removed = cleanup_cache(workspace)
-        print("已清理缓存" if removed else "无缓存可清理")
+        print("Cache cleaned" if removed else "No cache to clean")
         return 0
 
     if args.action == "show":
@@ -267,9 +273,9 @@ def main() -> int:
     if args.action == "template-check":
         exists = has_base_template(workspace)
         if exists:
-            print(f"模板存在: {get_base_template_path(workspace)}")
+            print(f"Template exists: {get_base_template_path(workspace)}")
             return 0
-        print("模板不存在", file=sys.stderr)
+        print("Template does not exist", file=sys.stderr)
         return 1
 
     if args.action == "template-show":
@@ -283,7 +289,7 @@ def main() -> int:
     if args.action == "template-use":
         try:
             path = init_working_from_template(workspace)
-            print(f"已从模板初始化工作缓存: {path}")
+            print(f"Working cache initialized from template: {path}")
             return 0
         except FileNotFoundError as exc:
             print(str(exc), file=sys.stderr)
@@ -292,28 +298,28 @@ def main() -> int:
     if args.action == "template-init":
         input_path = Path(args.input).expanduser().resolve()
         if not input_path.exists():
-            print(f"错误: 输入文件不存在: {input_path}", file=sys.stderr)
+            print(f"Error: Input file does not exist: {input_path}", file=sys.stderr)
             return 1
 
         payload = input_path.read_text(encoding="utf-8")
         path = init_base_template_from_text(workspace, payload)
-        print(f"模板已初始化: {path}")
+        print(f"Template initialized: {path}")
         return 0
 
     input_path = Path(args.input).expanduser().resolve()
     if not input_path.exists():
-        print(f"错误: 输入文件不存在: {input_path}", file=sys.stderr)
+        print(f"Error: Input file does not exist: {input_path}", file=sys.stderr)
         return 1
 
     payload = input_path.read_text(encoding="utf-8")
 
     if args.action == "init":
         path = init_cache_from_text(workspace, payload)
-        print(f"缓存已初始化: {path}")
+        print(f"Cache initialized: {path}")
         return 0
 
     path = update_cache_from_markdown(workspace, payload)
-    print(f"缓存已更新: {path}")
+    print(f"Cache updated: {path}")
     return 0
 
 

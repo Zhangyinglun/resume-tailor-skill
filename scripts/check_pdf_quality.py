@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""简历 PDF 质量检查脚本（通用版）。"""
+"""Resume PDF quality check script (general version)."""
 
 from __future__ import annotations
 
@@ -35,26 +35,26 @@ def points_to_mm(value: float) -> float:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="检测简历 PDF 是否满足格式与文本可读性要求。"
+        description="Check if resume PDF meets format and text readability requirements."
     )
-    parser.add_argument("pdf_path", help="待检测 PDF 文件路径")
+    parser.add_argument("pdf_path", help="PDF file path to check")
     parser.add_argument(
         "--keyword",
         action="append",
         default=[],
-        help="核心关键词（可重复传入，多次 --keyword）",
+        help="Core keywords (can be repeated, use multiple --keyword flags)",
     )
     parser.add_argument(
         "--min-bottom-mm",
         type=float,
         default=3.0,
-        help="底部留白最小值（mm，默认 3）",
+        help="Minimum bottom margin (mm, default 3)",
     )
     parser.add_argument(
         "--max-bottom-mm",
         type=float,
         default=8.0,
-        help="底部留白最大值（mm，默认 8）",
+        help="Maximum bottom margin (mm, default 8)",
     )
     return parser.parse_args()
 
@@ -110,11 +110,13 @@ def check_layout_warnings(lines: list[str]) -> list[str]:
         if role_time_pattern.match(line):
             next_line = lines[index + 1]
             if company_hint_pattern.search(next_line) and "|" not in line:
-                issues.append(f"疑似经历条目倒置: {line} -> {next_line}")
+                issues.append(
+                    f"Suspected inverted experience entry: {line} -> {next_line}"
+                )
 
     for index in range(len(lines) - 1):
         if lines[index] == lines[index + 1]:
-            issues.append(f"发现连续重复行: {lines[index]}")
+            issues.append(f"Found consecutive duplicate line: {lines[index]}")
 
     return issues
 
@@ -131,7 +133,7 @@ def main() -> int:
     pdf_path = Path(args.pdf_path).expanduser().resolve()
 
     if not pdf_path.exists():
-        print(f"错误: 文件不存在: {pdf_path}", file=sys.stderr)
+        print(f"Error: File does not exist: {pdf_path}", file=sys.stderr)
         return 1
 
     with pdfplumber.open(pdf_path) as pdf:
@@ -154,7 +156,7 @@ def main() -> int:
         html_leaks = HTML_TAG_PATTERN.findall(full_text)
 
     print("=" * 80)
-    print(f"PDF 质量检测: {pdf_path.name}")
+    print(f"PDF Quality Check: {pdf_path.name}")
     print("=" * 80)
 
     one_page = page_count == 1
@@ -172,57 +174,72 @@ def main() -> int:
 
     contact_ok = has_email and (has_phone or has_linkedin)
 
-    print_result("1. 页数", one_page, "1 页", f"当前 {page_count} 页（应为 1 页）")
     print_result(
-        "2. 页面尺寸",
+        "1. Page Count",
+        one_page,
+        "1 page",
+        f"Current {page_count} pages (should be 1 page)",
+    )
+    print_result(
+        "2. Page Size",
         is_a4,
         f"A4 ({width_mm:.1f}mm x {height_mm:.1f}mm)",
-        f"非 A4 ({width_mm:.1f}mm x {height_mm:.1f}mm)",
+        f"Not A4 ({width_mm:.1f}mm x {height_mm:.1f}mm)",
     )
-    print_result("3. 文本层", has_text, "可提取文本", "未提取到正文文本")
     print_result(
-        "4. HTML 标签泄漏",
+        "3. Text Layer", has_text, "Extractable text", "No body text extracted"
+    )
+    print_result(
+        "4. HTML Tag Leakage",
         no_html,
-        "未发现泄漏",
-        f"发现 {len(html_leaks)} 处疑似 HTML 标签",
+        "No leakage found",
+        f"Found {len(html_leaks)} suspected HTML tags",
     )
 
     if bottom_margin_mm is None:
-        print("5. 底部留白: ! 无法自动估算（建议目视确认）")
+        print(
+            "5. Bottom Margin: ! Unable to auto-estimate (manual verification recommended)"
+        )
     else:
         print_result(
-            "5. 底部留白",
+            "5. Bottom Margin",
             bottom_margin_ok,
-            f"{bottom_margin_mm:.2f}mm（目标 {args.min_bottom_mm}-{args.max_bottom_mm}mm）",
-            f"{bottom_margin_mm:.2f}mm（超出目标 {args.min_bottom_mm}-{args.max_bottom_mm}mm）",
+            f"{bottom_margin_mm:.2f}mm (target {args.min_bottom_mm}-{args.max_bottom_mm}mm)",
+            f"{bottom_margin_mm:.2f}mm (exceeds target {args.min_bottom_mm}-{args.max_bottom_mm}mm)",
         )
 
     if sections_ok:
-        print("6. 模块完整性: ✓ Summary/Skills/Experience/Education 均可识别")
+        print(
+            "6. Section Completeness: ✓ Summary/Skills/Experience/Education all identified"
+        )
     else:
-        print(f"6. 模块完整性: ✗ 缺失模块: {', '.join(missing_sections)}")
+        print(
+            f"6. Section Completeness: ✗ Missing sections: {', '.join(missing_sections)}"
+        )
 
     print_result(
-        "7. 联系信息",
+        "7. Contact Info",
         contact_ok,
-        "检测到 Email + (Phone 或 LinkedIn)",
-        "联系信息不完整（至少需要 Email + Phone/LinkedIn 其一）",
+        "Detected Email + (Phone or LinkedIn)",
+        "Incomplete contact info (need at least Email + Phone/LinkedIn)",
     )
 
     if args.keyword:
         if not missing_keywords:
-            print(f"8. 关键词覆盖: ✓ {len(args.keyword)} 个关键词全部命中")
+            print(f"8. Keyword Coverage: ✓ All {len(args.keyword)} keywords matched")
         else:
-            print(f"8. 关键词覆盖: ✗ 缺失关键词: {', '.join(missing_keywords)}")
+            print(
+                f"8. Keyword Coverage: ✗ Missing keywords: {', '.join(missing_keywords)}"
+            )
     else:
-        print("8. 关键词覆盖: ! 未提供关键词，跳过")
+        print("8. Keyword Coverage: ! No keywords provided, skipped")
 
     if layout_warnings:
-        print("9. 内容位置告警: ! 发现潜在问题")
+        print("9. Layout Warnings: ! Potential issues found")
         for issue in layout_warnings:
             print(f"   - {issue}")
     else:
-        print("9. 内容位置告警: ✓ 未发现明显问题")
+        print("9. Layout Warnings: ✓ No obvious issues found")
 
     critical_pass = all(
         [
@@ -239,11 +256,11 @@ def main() -> int:
 
     print("=" * 80)
     if critical_pass:
-        print("最终结论: PASS")
+        print("Final Verdict: PASS")
         print("=" * 80)
         return 0
 
-    print("最终结论: NEED-ADJUSTMENT")
+    print("Final Verdict: NEED-ADJUSTMENT")
     print("=" * 80)
     return 2
 

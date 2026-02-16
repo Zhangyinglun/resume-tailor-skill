@@ -27,7 +27,7 @@ from reportlab.platypus import (
 
 
 def register_fonts() -> tuple[str, str, str]:
-    """优先注册 Calibri，失败时回退到 Helvetica。"""
+    """Register Calibri with priority, fallback to Helvetica if failed."""
     try:
         calibri = Path(r"C:\Windows\Fonts\calibri.ttf")
         calibri_bold = Path(r"C:\Windows\Fonts\calibrib.ttf")
@@ -52,7 +52,7 @@ def register_fonts() -> tuple[str, str, str]:
 
 
 def create_styles(base_font: str, bold_font: str) -> dict[str, ParagraphStyle]:
-    """创建简历排版样式。"""
+    """Create resume layout styles."""
     styles = getSampleStyleSheet()
 
     custom_styles: dict[str, ParagraphStyle] = {}
@@ -173,20 +173,20 @@ def validate_content(content_dict: dict[str, Any]) -> None:
     required = ("name", "contact", "summary", "skills", "experience", "education")
     missing = [key for key in required if key not in content_dict]
     if missing:
-        raise ValueError(f"内容缺少必填字段: {', '.join(missing)}")
+        raise ValueError(f"Content missing required fields: {', '.join(missing)}")
 
     if not isinstance(content_dict["skills"], list):
-        raise ValueError("`skills` 必须是数组。")
+        raise ValueError("`skills` must be an array.")
     if not isinstance(content_dict["experience"], list):
-        raise ValueError("`experience` 必须是数组。")
+        raise ValueError("`experience` must be an array.")
     if not isinstance(content_dict["education"], list):
-        raise ValueError("`education` 必须是数组。")
+        raise ValueError("`education` must be an array.")
 
 
 def infer_position_from_filename(output_name: str) -> str:
     """
-    从文件名推断岗位方向。
-    命名规则: {MM}_{DD}_{Name}_{Position}_resume.pdf
+    Infer position type from filename.
+    Naming convention: {MM}_{DD}_{Name}_{Position}_resume.pdf
     """
     stem = Path(output_name).stem
     if not stem.endswith("_resume"):
@@ -216,7 +216,7 @@ def get_next_backup_path(backup_dir: Path, output_stem: str) -> Path:
 def archive_root_pdfs(
     base_output_dir: Path, exclude_names: set[str] | None = None
 ) -> list[Path]:
-    """将 output 根目录中的历史 PDF 统一转移到 backup 目录。"""
+    """Move historical PDFs from output root directory to backup directory."""
     excluded = exclude_names or set()
     archived_paths: list[Path] = []
 
@@ -231,7 +231,7 @@ def archive_root_pdfs(
         backup_path = get_next_backup_path(backup_dir, pdf_file.stem)
         pdf_file.replace(backup_path)
         archived_paths.append(backup_path)
-        print(f"✓ 旧文件已备份到: {backup_path}")
+        print(f"✓ Old file backed up to: {backup_path}")
 
     return archived_paths
 
@@ -239,10 +239,10 @@ def archive_root_pdfs(
 def generate_resume(
     output_file: str, content_dict: dict[str, Any], base_dir: str = "resume_output"
 ) -> str:
-    """根据结构化内容生成简历 PDF。"""
+    """Generate resume PDF from structured content."""
     output_name = Path(output_file).name
     if output_name != output_file:
-        raise ValueError("output_file 只能是文件名，不能包含路径。")
+        raise ValueError("output_file must be filename only, cannot contain path.")
 
     validate_content(content_dict)
 
@@ -373,8 +373,8 @@ def generate_resume(
     archive_root_pdfs(base_output_dir, exclude_names={temp_output_path.name})
     temp_output_path.replace(output_path)
 
-    print(f"✓ PDF 生成完成: {output_path}")
-    print(f"✓ 使用字体: {base_font}")
+    print(f"✓ PDF generation completed: {output_path}")
+    print(f"✓ Font used: {base_font}")
     return str(output_path)
 
 

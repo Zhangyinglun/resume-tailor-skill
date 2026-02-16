@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""将标准化简历 Markdown 转为模板输入 JSON。"""
+"""Convert standardized resume Markdown to template input JSON."""
 
 from __future__ import annotations
 
@@ -52,7 +52,7 @@ def _parse_skills(section_text: str) -> list[dict[str, str]]:
             skills.append({"category": "Core", "items": payload})
 
     if not skills:
-        skills.append({"category": "Core", "items": "[待补充技能]"})
+        skills.append({"category": "Core", "items": "[To be filled: Skills]"})
 
     return skills
 
@@ -101,13 +101,13 @@ def _parse_experience(section_text: str) -> list[dict[str, Any]]:
                 "title": "[Title]",
                 "location": "[Location]",
                 "dates": "[Dates]",
-                "bullets": ["[待补充经历要点]"],
+                "bullets": ["[To be filled: Experience details]"],
             }
         )
 
     for item in experience:
         if not item["bullets"]:
-            item["bullets"] = ["[待补充经历要点]"]
+            item["bullets"] = ["[To be filled: Experience details]"]
 
     return experience
 
@@ -140,7 +140,7 @@ def _parse_education(section_text: str) -> list[dict[str, str]]:
 
 def markdown_to_content(markdown: str) -> dict[str, Any]:
     name, contact = _parse_header(markdown)
-    summary = _find_section(markdown, "SUMMARY") or "[待补充 Summary]"
+    summary = _find_section(markdown, "SUMMARY") or "[To be filled: Summary]"
     skills_text = _find_section(markdown, "TECHNICAL SKILLS")
     experience_text = _find_section(markdown, "PROFESSIONAL EXPERIENCE")
     education_text = _find_section(markdown, "EDUCATION")
@@ -156,9 +156,13 @@ def markdown_to_content(markdown: str) -> dict[str, Any]:
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="把标准 Markdown 简历转换为 JSON")
-    parser.add_argument("--input-md", required=True, help="输入 markdown 路径")
-    parser.add_argument("--output-json", help="输出 JSON 路径；不传则打印到标准输出")
+    parser = argparse.ArgumentParser(
+        description="Convert standard Markdown resume to JSON"
+    )
+    parser.add_argument("--input-md", required=True, help="Input markdown path")
+    parser.add_argument(
+        "--output-json", help="Output JSON path; if not provided, prints to stdout"
+    )
     return parser.parse_args()
 
 
@@ -167,7 +171,7 @@ def main() -> int:
     input_path = Path(args.input_md).expanduser().resolve()
 
     if not input_path.exists():
-        print(f"错误: 文件不存在: {input_path}")
+        print(f"Error: File does not exist: {input_path}")
         return 1
 
     markdown = input_path.read_text(encoding="utf-8")
@@ -179,7 +183,7 @@ def main() -> int:
         output_path.write_text(
             json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
         )
-        print(f"转换完成: {output_path}")
+        print(f"Conversion completed: {output_path}")
         return 0
 
     print(json.dumps(payload, ensure_ascii=False, indent=2))

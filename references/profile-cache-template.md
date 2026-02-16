@@ -1,41 +1,41 @@
-# 用户简历画像缓存模板
+# User Resume Profile Cache Template
 
-> 存放路径（工作区内）：`cache/user-profile.md`
-> 说明：该文件属于个性化缓存，不属于 skill 目录的静态资产。
+> Storage path (within workspace): `cache/user-profile.md`
+> Note: This file is a personalized cache, not a static asset of the skill directory.
 
-## 通用偏好
+## General Preferences
 
-- **简历语言**：待记录
-- **排版风格**：待记录
-- **字体偏好**：待记录
-- **正文字号**：待记录
-- **行距偏好**：待记录
-- **页边距偏好**：待记录
-- **内容底线**：待记录（例如：不接受编造）
-- **用词习惯**：待记录
-- **模块偏好**：待记录
+- **Resume Language**: To be recorded
+- **Layout Style**: To be recorded
+- **Font Preference**: To be recorded
+- **Body Font Size**: To be recorded
+- **Line Spacing Preference**: To be recorded
+- **Margin Preference**: To be recorded
+- **Content Bottom Line**: To be recorded (e.g., no fabrication accepted)
+- **Wording Habits**: To be recorded
+- **Module Preferences**: To be recorded
 
 ---
 
-## 岗位方向记录
+## Position Direction Record
 
 <!--
-每个方向使用三级标题，格式如下：
+Each direction uses a level-3 heading, formatted as follows:
 
-### [方向名称]
+### [Direction Name]
 
-**方向特征**:
-- 核心技术栈：...
-- 常用关键词池：...
-- 经历排序偏好：...
-- 简历侧重策略：...
+**Direction Characteristics**:
+- Core tech stack: ...
+- Common keyword pool: ...
+- Experience ordering preference: ...
+- Resume focus strategy: ...
 
-**历史修改日志**:
+**History Modification Log**:
 
-#### YYYY-MM-DD | [职位] @ [公司]
-- JD 核心关键词：...
-- 接受的修改：...
-- 拒绝的修改：...
-- 最终排版参数：...
-- 本次发现：...
+#### YYYY-MM-DD | [Position] @ [Company]
+- JD core keywords: ...
+- Accepted modifications: ...
+- Rejected modifications: ...
+- Final layout parameters: ...
+- Findings from this session: ...
 -->
