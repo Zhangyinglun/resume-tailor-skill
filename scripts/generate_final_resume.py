@@ -11,14 +11,14 @@ from pathlib import Path
 from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-TEMPLATE_DIR = SCRIPT_DIR.parent / "templates"
-if str(TEMPLATE_DIR) not in sys.path:
-    sys.path.insert(0, str(TEMPLATE_DIR))
+PROJECT_ROOT = SCRIPT_DIR.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from modern_resume_template import generate_resume  # noqa: E402
+from templates.modern_resume_template import generate_resume  # noqa: E402
 from resume_md_to_json import markdown_to_content  # noqa: E402
 
 REQUIRED_KEYS = ("name", "contact", "summary", "skills", "experience", "education")

@@ -127,7 +127,7 @@ description: Use when 用户提供 JD 与现有简历，希望进行岗位匹配
 ### 阶段 4：质量保证与去 AI 化
 进入排版前，必须完成 4 类检查并输出 QA 报告：
 1. **结构逻辑**：Summary 聚焦度、证据链、时间线一致性
-2. **自然表达**：调用 `humanizer` / `humanizer-zh` skill 去除 AI 痕迹词
+2. **自然表达**：调用 `humanizer` skill 去除 AI 痕迹词
 3. **量化结果**：检查每条经历是否含四要素（action + keyword + method/tool + result），缺数字或缺方法/工具则标注
 4. **ATS 细节**：关键词原词命中、时态统一、联系信息完整
 
@@ -169,7 +169,7 @@ Education
 ## 依赖 Skill
 - `docx`：读取 `.docx` 简历
 - `pdf`：读取 PDF、执行所有 PDF 生成与复检动作
-- `humanizer` / `humanizer-zh`：去除 AI 痕迹，提升自然表达
+- `humanizer`：去除 AI 痕迹，提升自然表达
 
 ## 特殊场景策略
 

@@ -8,6 +8,7 @@ import argparse
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 import pdfplumber
 
@@ -33,7 +34,9 @@ def points_to_mm(value: float) -> float:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="检测简历 PDF 是否满足格式与文本可读性要求。")
+    parser = argparse.ArgumentParser(
+        description="检测简历 PDF 是否满足格式与文本可读性要求。"
+    )
     parser.add_argument("pdf_path", help="待检测 PDF 文件路径")
     parser.add_argument(
         "--keyword",
@@ -56,7 +59,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def estimate_bottom_margin_mm(page: pdfplumber.page.Page) -> float | None:
+def estimate_bottom_margin_mm(page: Any) -> float | None:
     words = page.extract_words() or []
     bottoms = [float(word["bottom"]) for word in words if "bottom" in word]
     if not bottoms:
@@ -177,7 +180,12 @@ def main() -> int:
         f"非 A4 ({width_mm:.1f}mm x {height_mm:.1f}mm)",
     )
     print_result("3. 文本层", has_text, "可提取文本", "未提取到正文文本")
-    print_result("4. HTML 标签泄漏", no_html, "未发现泄漏", f"发现 {len(html_leaks)} 处疑似 HTML 标签")
+    print_result(
+        "4. HTML 标签泄漏",
+        no_html,
+        "未发现泄漏",
+        f"发现 {len(html_leaks)} 处疑似 HTML 标签",
+    )
 
     if bottom_margin_mm is None:
         print("5. 底部留白: ! 无法自动估算（建议目视确认）")

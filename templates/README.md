@@ -14,6 +14,12 @@
 - 结构：Summary → Technical Skills → Professional Experience → Education
 - 经历区：第一行 Company（左）与 Dates（右）；第二行 Title | Location
 
+## 跨平台字体说明
+
+- 在 Windows 上会优先读取 `C:/Windows/Fonts/` 下的 Calibri 字体文件。
+- 在 macOS/Linux 或未安装 Calibri 的环境中，会自动回退到 Helvetica。
+- 回退不会阻塞生成流程，但不同平台的字形宽度可能导致行数略有差异。
+
 ## 页面与排版参数
 
 - 页面：A4 (210mm x 297mm)

@@ -1,0 +1,63 @@
+version: 2
+name: resume-tailor-skill-deps
+target_skills_dir: ~/.config/opencode/skills
+
+requirements:
+  - check: py -3 --version
+  - check: git --version
+
+sources:
+  - id: anthropics-skills
+    repo: https://github.com/anthropics/skills
+    cache_dir: ~/.config/opencode/skills/_upstream_anthropic_skills
+    skills:
+      - pdf
+      - docx
+  - id: blader-humanizer
+    repo: https://github.com/blader/humanizer
+    cache_dir: ~/.config/opencode/skills/_upstream_humanizer
+    skills:
+      - humanizer
+
+sync_policy:
+  strategy: pull-or-clone
+  pull_command: git -C <cache_dir> pull --ff-only
+  clone_command: git clone <repo> <cache_dir>
+
+install_plan:
+  - run: py -3 -m pip install -r requirements.txt
+  - sync_repo:
+      source_id: anthropics-skills
+  - sync_repo:
+      source_id: blader-humanizer
+  - install_skill:
+      source_id: anthropics-skills
+      skill: pdf
+      from: ~/.config/opencode/skills/_upstream_anthropic_skills/pdf
+      to: ~/.config/opencode/skills/pdf
+      mode: copy
+      overwrite: true
+  - install_skill:
+      source_id: anthropics-skills
+      skill: docx
+      from: ~/.config/opencode/skills/_upstream_anthropic_skills/docx
+      to: ~/.config/opencode/skills/docx
+      mode: copy
+      overwrite: true
+  - install_skill:
+      source_id: blader-humanizer
+      skill: humanizer
+      from: ~/.config/opencode/skills/_upstream_humanizer/humanizer
+      to: ~/.config/opencode/skills/humanizer
+      mode: copy
+      overwrite: true
+
+post_check:
+  - ensure_exists: ~/.config/opencode/skills/pdf/SKILL.md
+  - ensure_exists: ~/.config/opencode/skills/docx/SKILL.md
+  - ensure_exists: ~/.config/opencode/skills/humanizer/SKILL.md
+  - ensure_absent: ~/.config/opencode/skills/humanizer-zh/SKILL.md
+
+report:
+  - print: installed skills => pdf, docx, humanizer
+  - print: skipped skill => humanizer-zh

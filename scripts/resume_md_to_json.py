@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from typing import Any
 
 
 def _find_section(text: str, title: str) -> str:
@@ -56,9 +57,9 @@ def _parse_skills(section_text: str) -> list[dict[str, str]]:
     return skills
 
 
-def _parse_experience(section_text: str) -> list[dict[str, object]]:
-    experience: list[dict[str, object]] = []
-    current: dict[str, object] | None = None
+def _parse_experience(section_text: str) -> list[dict[str, Any]]:
+    experience: list[dict[str, Any]] = []
+    current: dict[str, Any] | None = None
 
     for line in section_text.splitlines():
         stripped = line.strip()
@@ -130,12 +131,14 @@ def _parse_education(section_text: str) -> list[dict[str, str]]:
         education.append({"school": school, "degree": degree, "dates": dates})
 
     if not education:
-        education.append({"school": "[School]", "degree": "[Degree]", "dates": "[Dates]"})
+        education.append(
+            {"school": "[School]", "degree": "[Degree]", "dates": "[Dates]"}
+        )
 
     return education
 
 
-def markdown_to_content(markdown: str) -> dict[str, object]:
+def markdown_to_content(markdown: str) -> dict[str, Any]:
     name, contact = _parse_header(markdown)
     summary = _find_section(markdown, "SUMMARY") or "[待补充 Summary]"
     skills_text = _find_section(markdown, "TECHNICAL SKILLS")

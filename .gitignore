@@ -5,7 +5,7 @@ __pycache__/
 
 # Local runtime outputs
 cache/
-resume_output/*.pdf
+resume_output/**/*.pdf
 
 # IDE files
 .idea/
