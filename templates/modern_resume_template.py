@@ -25,6 +25,8 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from templates.layout_settings import DEFAULT_SETTINGS, LayoutSettings
+
 
 def register_fonts() -> tuple[str, str, str]:
     """Register Calibri with priority, fallback to Helvetica if failed."""
@@ -51,8 +53,16 @@ def register_fonts() -> tuple[str, str, str]:
     return "Helvetica", "Helvetica-Bold", "Helvetica-Oblique"
 
 
-def create_styles(base_font: str, bold_font: str) -> dict[str, ParagraphStyle]:
+def create_styles(
+    base_font: str, bold_font: str, layout: LayoutSettings | None = None
+) -> dict[str, ParagraphStyle]:
     """Create resume layout styles."""
+    settings = layout or DEFAULT_SETTINGS
+    fs = settings.effective_font_size_scale
+    lh = settings.effective_line_height_scale
+    ss = settings.effective_section_spacing_scale
+    item_scale = settings.effective_item_spacing_scale
+
     styles = getSampleStyleSheet()
 
     custom_styles: dict[str, ParagraphStyle] = {}
@@ -60,9 +70,9 @@ def create_styles(base_font: str, bold_font: str) -> dict[str, ParagraphStyle]:
     custom_styles["Header"] = ParagraphStyle(
         "Header",
         parent=styles["Normal"],
-        fontSize=15,
+        fontSize=15 * fs,
         textColor=colors.black,
-        spaceAfter=9,
+        spaceAfter=9 * ss,
         alignment=TA_CENTER,
         fontName=bold_font,
     )
@@ -70,8 +80,8 @@ def create_styles(base_font: str, bold_font: str) -> dict[str, ParagraphStyle]:
     custom_styles["Contact"] = ParagraphStyle(
         "Contact",
         parent=styles["Normal"],
-        fontSize=10.5,
-        spaceAfter=11,
+        fontSize=10.5 * fs,
+        spaceAfter=11 * ss,
         alignment=TA_CENTER,
         fontName=base_font,
     )
@@ -79,20 +89,20 @@ def create_styles(base_font: str, bold_font: str) -> dict[str, ParagraphStyle]:
     custom_styles["Section"] = ParagraphStyle(
         "Section",
         parent=styles["Normal"],
-        fontSize=10.6,
+        fontSize=10.6 * fs,
         textColor=colors.black,
-        spaceBefore=8.5,
-        spaceAfter=5,
+        spaceBefore=8.5 * ss,
+        spaceAfter=5 * ss,
         fontName=bold_font,
-        leading=13,
+        leading=13 * lh,
     )
 
     custom_styles["Body"] = ParagraphStyle(
         "Body",
         parent=styles["Normal"],
-        fontSize=9.85,
-        leading=12.2,
-        spaceAfter=6.2,
+        fontSize=9.85 * fs,
+        leading=12.2 * lh,
+        spaceAfter=6.2 * item_scale,
         alignment=TA_JUSTIFY,
         fontName=base_font,
     )
@@ -100,18 +110,18 @@ def create_styles(base_font: str, bold_font: str) -> dict[str, ParagraphStyle]:
     custom_styles["CompanyTitle"] = ParagraphStyle(
         "CompanyTitle",
         parent=styles["Normal"],
-        fontSize=9.9,
-        leading=12,
-        spaceAfter=4.5,
+        fontSize=9.9 * fs,
+        leading=12 * lh,
+        spaceAfter=4.5 * item_scale,
         fontName=base_font,
     )
 
     custom_styles["CompanyName"] = ParagraphStyle(
         "CompanyName",
         parent=styles["Normal"],
-        fontSize=10.2,
-        leading=12.5,
-        spaceAfter=2.5,
+        fontSize=10.2 * fs,
+        leading=12.5 * lh,
+        spaceAfter=2.5 * item_scale,
         fontName=bold_font,
         alignment=TA_LEFT,
     )
@@ -119,8 +129,8 @@ def create_styles(base_font: str, bold_font: str) -> dict[str, ParagraphStyle]:
     custom_styles["DatesRight"] = ParagraphStyle(
         "DatesRight",
         parent=styles["Normal"],
-        fontSize=9.9,
-        leading=12,
+        fontSize=9.9 * fs,
+        leading=12 * lh,
         fontName=base_font,
         alignment=TA_RIGHT,
     )
@@ -128,9 +138,9 @@ def create_styles(base_font: str, bold_font: str) -> dict[str, ParagraphStyle]:
     custom_styles["JobDetail"] = ParagraphStyle(
         "JobDetail",
         parent=styles["Normal"],
-        fontSize=9.9,
-        leading=12,
-        spaceAfter=4.5,
+        fontSize=9.9 * fs,
+        leading=12 * lh,
+        spaceAfter=4.5 * item_scale,
         fontName=base_font,
         alignment=TA_LEFT,
     )
@@ -138,10 +148,10 @@ def create_styles(base_font: str, bold_font: str) -> dict[str, ParagraphStyle]:
     custom_styles["Bullet"] = ParagraphStyle(
         "Bullet",
         parent=styles["Normal"],
-        fontSize=9.85,
-        leading=12.2,
+        fontSize=9.85 * fs,
+        leading=12.2 * lh,
         leftIndent=15,
-        spaceAfter=3.2,
+        spaceAfter=3.2 * item_scale,
         bulletIndent=5,
         fontName=base_font,
         alignment=TA_LEFT,
@@ -150,18 +160,18 @@ def create_styles(base_font: str, bold_font: str) -> dict[str, ParagraphStyle]:
     custom_styles["Education"] = ParagraphStyle(
         "Education",
         parent=styles["Normal"],
-        fontSize=9.9,
-        leading=12,
-        spaceAfter=3.5,
+        fontSize=9.9 * fs,
+        leading=12 * lh,
+        spaceAfter=3.5 * item_scale,
         fontName=base_font,
     )
 
     custom_styles["EducationDegree"] = ParagraphStyle(
         "EducationDegree",
         parent=styles["Normal"],
-        fontSize=9.9,
-        leading=12,
-        spaceAfter=3.5,
+        fontSize=9.9 * fs,
+        leading=12 * lh,
+        spaceAfter=3.5 * item_scale,
         fontName=base_font,
         alignment=TA_LEFT,
     )
@@ -237,7 +247,10 @@ def archive_root_pdfs(
 
 
 def generate_resume(
-    output_file: str, content_dict: dict[str, Any], base_dir: str = "resume_output"
+    output_file: str,
+    content_dict: dict[str, Any],
+    base_dir: str = "resume_output",
+    layout: LayoutSettings | None = None,
 ) -> str:
     """Generate resume PDF from structured content."""
     output_name = Path(output_file).name
@@ -256,16 +269,18 @@ def generate_resume(
     if temp_output_path.exists():
         temp_output_path.unlink()
 
+    settings = layout or DEFAULT_SETTINGS
+
     base_font, bold_font, _ = register_fonts()
-    styles = create_styles(base_font, bold_font)
+    styles = create_styles(base_font, bold_font, layout=settings)
 
     doc = SimpleDocTemplate(
         str(temp_output_path),
         pagesize=A4,
-        topMargin=5 * mm,
-        bottomMargin=5 * mm,
-        leftMargin=0.6 * inch,
-        rightMargin=0.6 * inch,
+        topMargin=settings.margin_top_mm * mm,
+        bottomMargin=settings.margin_bottom_mm * mm,
+        leftMargin=settings.margin_side_inch * inch,
+        rightMargin=settings.margin_side_inch * inch,
     )
 
     story = []
@@ -331,7 +346,123 @@ def generate_resume(
             story.append(Paragraph(f"• {bullet}", styles["Bullet"]))
 
         if index < len(content_dict["experience"]) - 1:
-            story.append(Spacer(1, 0.05 * inch))
+            story.append(Spacer(1, 0.05 * inch * settings.effective_item_spacing_scale))
+
+    if content_dict.get("projects"):
+        story.append(Paragraph("PROJECTS", styles["Section"]))
+        story.append(
+            HRFlowable(width="100%", thickness=1, color=colors.black, spaceAfter=4)
+        )
+
+        for index, project in enumerate(content_dict["projects"]):
+            name = project.get("name", "")
+            tech = project.get("tech", "")
+            dates = project.get("dates", "")
+            bullets = project.get("bullets", [])
+
+            left_text = f"<b>{name}</b>"
+            if tech:
+                left_text += f" | {tech}"
+
+            project_row = Table(
+                [
+                    [
+                        Paragraph(left_text, styles["CompanyName"]),
+                        Paragraph(dates, styles["DatesRight"]),
+                    ]
+                ],
+                colWidths=[doc.width * 0.72, doc.width * 0.28],
+            )
+            project_row.setStyle(
+                TableStyle(
+                    [
+                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                        ("TOPPADDING", (0, 0), (-1, -1), 0),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ]
+                )
+            )
+            story.append(project_row)
+
+            for bullet in bullets:
+                story.append(Paragraph(f"• {bullet}", styles["Bullet"]))
+
+            if index < len(content_dict["projects"]) - 1:
+                story.append(
+                    Spacer(1, 0.05 * inch * settings.effective_item_spacing_scale)
+                )
+
+    if content_dict.get("certifications"):
+        story.append(Paragraph("CERTIFICATIONS", styles["Section"]))
+        story.append(
+            HRFlowable(width="100%", thickness=1, color=colors.black, spaceAfter=4)
+        )
+        for cert in content_dict["certifications"]:
+            name = cert.get("name", "")
+            issuer = cert.get("issuer", "")
+            dates = cert.get("dates", "")
+            left_text = f"<b>{name}</b>"
+            if issuer:
+                left_text += f" - {issuer}"
+
+            cert_row = Table(
+                [
+                    [
+                        Paragraph(left_text, styles["Education"]),
+                        Paragraph(dates, styles["DatesRight"]),
+                    ]
+                ],
+                colWidths=[doc.width * 0.72, doc.width * 0.28],
+            )
+            cert_row.setStyle(
+                TableStyle(
+                    [
+                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                        ("TOPPADDING", (0, 0), (-1, -1), 0),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ]
+                )
+            )
+            story.append(cert_row)
+
+    if content_dict.get("awards"):
+        story.append(Paragraph("AWARDS", styles["Section"]))
+        story.append(
+            HRFlowable(width="100%", thickness=1, color=colors.black, spaceAfter=4)
+        )
+        for award in content_dict["awards"]:
+            name = award.get("name", "")
+            organization = award.get("organization", "")
+            dates = award.get("dates", "")
+            left_text = f"<b>{name}</b>"
+            if organization:
+                left_text += f" - {organization}"
+
+            award_row = Table(
+                [
+                    [
+                        Paragraph(left_text, styles["Education"]),
+                        Paragraph(dates, styles["DatesRight"]),
+                    ]
+                ],
+                colWidths=[doc.width * 0.72, doc.width * 0.28],
+            )
+            award_row.setStyle(
+                TableStyle(
+                    [
+                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                        ("TOPPADDING", (0, 0), (-1, -1), 0),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ]
+                )
+            )
+            story.append(award_row)
 
     story.append(Paragraph("EDUCATION", styles["Section"]))
     story.append(

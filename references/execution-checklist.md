@@ -75,6 +75,11 @@ Note: When outputting "Resume Full Preview", read directly from `cache/resume-wo
    - No HTML tag leakage
    - Bottom margin 3-8mm
 5. If not passing, fine-tune and regenerate until passing.
+6. If content is near page limit, use `--compact` or fine-tune scale parameters:
+   - `--compact`: preset reduction of font size, line height, and spacing
+   - `--font-size-scale 0.95`: slight font reduction
+   - `--item-spacing-scale 0.85`: reduce bullet spacing
+   - Priority: adjust spacing first, then font size, to maintain readability
 
 ## Phase 6: Wrap-up
 1. Update `cache/user-profile.md` (long-term preference and direction log).

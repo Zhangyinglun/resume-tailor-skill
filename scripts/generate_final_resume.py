@@ -19,6 +19,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from templates.modern_resume_template import generate_resume  # noqa: E402
+from templates.layout_settings import LayoutSettings  # noqa: E402
 from resume_md_to_json import markdown_to_content  # noqa: E402
 
 REQUIRED_KEYS = ("name", "contact", "summary", "skills", "experience", "education")
@@ -44,6 +45,53 @@ def parse_args() -> argparse.Namespace:
         "--output-dir",
         default="resume_output",
         help="Output directory (default: resume_output)",
+    )
+    parser.add_argument(
+        "--font-size-scale",
+        type=float,
+        default=None,
+        help="Font size scale factor (0.7-1.3, default: 1.0)",
+    )
+    parser.add_argument(
+        "--line-height-scale",
+        type=float,
+        default=None,
+        help="Line height scale factor (0.7-1.3, default: 1.0)",
+    )
+    parser.add_argument(
+        "--section-spacing-scale",
+        type=float,
+        default=None,
+        help="Section spacing scale factor (0.7-1.3, default: 1.0)",
+    )
+    parser.add_argument(
+        "--item-spacing-scale",
+        type=float,
+        default=None,
+        help="Item spacing scale factor (0.7-1.3, default: 1.0)",
+    )
+    parser.add_argument(
+        "--margin-top-mm",
+        type=float,
+        default=5.0,
+        help="Top margin in mm (default: 5.0)",
+    )
+    parser.add_argument(
+        "--margin-bottom-mm",
+        type=float,
+        default=5.0,
+        help="Bottom margin in mm (default: 5.0)",
+    )
+    parser.add_argument(
+        "--margin-side-inch",
+        type=float,
+        default=0.6,
+        help="Left/right margin in inches (default: 0.6)",
+    )
+    parser.add_argument(
+        "--compact",
+        action="store_true",
+        help="Enable compact mode (reduces spacing and font sizes)",
     )
     return parser.parse_args()
 
@@ -99,7 +147,19 @@ def main() -> int:
             content = load_markdown_content(source_path)
 
         validate_content(content)
-        output_path = generate_resume(output_name, content, base_dir=str(output_dir))
+        layout = LayoutSettings(
+            font_size_scale=args.font_size_scale,
+            line_height_scale=args.line_height_scale,
+            section_spacing_scale=args.section_spacing_scale,
+            item_spacing_scale=args.item_spacing_scale,
+            margin_top_mm=args.margin_top_mm,
+            margin_bottom_mm=args.margin_bottom_mm,
+            margin_side_inch=args.margin_side_inch,
+            compact_mode=args.compact,
+        )
+        output_path = generate_resume(
+            output_name, content, base_dir=str(output_dir), layout=layout
+        )
     except Exception as exc:  # noqa: BLE001
         print(f"Generation failed: {exc}", file=sys.stderr)
         return 1

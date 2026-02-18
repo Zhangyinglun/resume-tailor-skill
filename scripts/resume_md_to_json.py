@@ -138,12 +138,92 @@ def _parse_education(section_text: str) -> list[dict[str, str]]:
     return education
 
 
+def _parse_projects(section_text: str) -> list[dict[str, Any]]:
+    projects: list[dict[str, Any]] = []
+    current: dict[str, Any] | None = None
+
+    for line in section_text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        if stripped.startswith("### "):
+            if current:
+                projects.append(current)
+            header = stripped.replace("### ", "", 1).strip()
+            parts = [item.strip() for item in header.split("|")]
+            current = {
+                "name": parts[0] if parts else "[Project]",
+                "tech": parts[1] if len(parts) > 1 else "",
+                "dates": parts[2] if len(parts) > 2 else "",
+                "bullets": [],
+            }
+            continue
+
+        if stripped.startswith("-") and current is not None:
+            bullet = stripped.lstrip("- ").strip()
+            if bullet:
+                current["bullets"].append(bullet)
+
+    if current:
+        projects.append(current)
+
+    return projects
+
+
+def _parse_certifications(section_text: str) -> list[dict[str, str]]:
+    certifications: list[dict[str, str]] = []
+    for line in section_text.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("-"):
+            continue
+
+        payload = stripped.lstrip("- ").strip()
+        if not payload:
+            continue
+
+        parts = [item.strip() for item in payload.split("|")]
+        certifications.append(
+            {
+                "name": parts[0] if parts else "[Certification]",
+                "issuer": parts[1] if len(parts) > 1 else "",
+                "dates": parts[2] if len(parts) > 2 else "",
+            }
+        )
+    return certifications
+
+
+def _parse_awards(section_text: str) -> list[dict[str, str]]:
+    awards: list[dict[str, str]] = []
+    for line in section_text.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("-"):
+            continue
+
+        payload = stripped.lstrip("- ").strip()
+        if not payload:
+            continue
+
+        parts = [item.strip() for item in payload.split("|")]
+        awards.append(
+            {
+                "name": parts[0] if parts else "[Award]",
+                "organization": parts[1] if len(parts) > 1 else "",
+                "dates": parts[2] if len(parts) > 2 else "",
+            }
+        )
+    return awards
+
+
 def markdown_to_content(markdown: str) -> dict[str, Any]:
     name, contact = _parse_header(markdown)
     summary = _find_section(markdown, "SUMMARY") or "[To be filled: Summary]"
     skills_text = _find_section(markdown, "TECHNICAL SKILLS")
     experience_text = _find_section(markdown, "PROFESSIONAL EXPERIENCE")
     education_text = _find_section(markdown, "EDUCATION")
+    projects_text = _find_section(markdown, "PROJECTS")
+    certifications_text = _find_section(markdown, "CERTIFICATIONS")
+    awards_text = _find_section(markdown, "AWARDS")
 
     return {
         "name": name,
@@ -152,6 +232,9 @@ def markdown_to_content(markdown: str) -> dict[str, Any]:
         "skills": _parse_skills(skills_text),
         "experience": _parse_experience(experience_text),
         "education": _parse_education(education_text),
+        "projects": _parse_projects(projects_text),
+        "certifications": _parse_certifications(certifications_text),
+        "awards": _parse_awards(awards_text),
     }
 
 

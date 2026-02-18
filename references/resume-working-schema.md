@@ -41,4 +41,9 @@ Summary sentence 1. Summary sentence 2.
 - Experience uses level-3 heading `###` to indicate individual experience entries.
 - Education uses `- School | Degree | Dates` single-line structure.
 - Skills uses `- Category: items` structure.
+- Optional sections can be included between PROFESSIONAL EXPERIENCE and EDUCATION:
+  - `## PROJECTS` - Uses `###` third-level headings for project entries (similar to experience format)
+  - `## CERTIFICATIONS` - Uses `- Name | Issuer | Dates` single-line structure
+  - `## AWARDS` - Uses `- Name | Organization | Dates` single-line structure
+- Optional sections are omitted if no relevant content exists.
 - Do not insert analysis text unrelated to resume in cache file.

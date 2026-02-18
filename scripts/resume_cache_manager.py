@@ -5,9 +5,11 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 CACHE_REL_PATH = Path("cache") / "resume-working.md"
 BASE_TEMPLATE_REL_PATH = Path("cache") / "base-resume.md"
@@ -22,6 +24,14 @@ SECTION_ALIASES = {
     "work experience": "experience",
     "professional experience": "experience",
     "education": "education",
+    "projects": "projects",
+    "personal projects": "projects",
+    "key projects": "projects",
+    "certifications": "certifications",
+    "certificates": "certifications",
+    "awards": "awards",
+    "honors": "awards",
+    "honors and awards": "awards",
 }
 
 
@@ -57,9 +67,12 @@ def _extract_sections(raw_text: str) -> dict[str, list[str]]:
         "skills": [],
         "experience": [],
         "education": [],
+        "projects": [],
+        "certifications": [],
+        "awards": [],
     }
 
-    current_section = "summary"
+    current_section = ""
     for line in lines:
         if not line:
             continue
@@ -67,7 +80,8 @@ def _extract_sections(raw_text: str) -> dict[str, list[str]]:
         if maybe_section:
             current_section = maybe_section
             continue
-        sections[current_section].append(line)
+        if current_section:
+            sections[current_section].append(line)
 
     return sections
 
@@ -149,6 +163,30 @@ def normalize_resume_text_to_markdown(raw_text: str) -> str:
 
     lines.extend(["", "## PROFESSIONAL EXPERIENCE"])
     lines.extend(experience_block)
+
+    if sections["projects"]:
+        lines.extend(["", "## PROJECTS"])
+        first_project = sections["projects"][0].lstrip("- ").strip()
+        lines.append(f"### {first_project}")
+        for project_line in sections["projects"][1:]:
+            cleaned = project_line.lstrip("- ").strip()
+            if cleaned:
+                lines.append(f"- {cleaned}")
+
+    if sections["certifications"]:
+        lines.extend(["", "## CERTIFICATIONS"])
+        for certification in sections["certifications"]:
+            cleaned = certification.lstrip("- ").strip()
+            if cleaned:
+                lines.append(f"- {cleaned}")
+
+    if sections["awards"]:
+        lines.extend(["", "## AWARDS"])
+        for award in sections["awards"]:
+            cleaned = award.lstrip("- ").strip()
+            if cleaned:
+                lines.append(f"- {cleaned}")
+
     lines.extend(["", "## EDUCATION"])
 
     for item in normalized_education:
@@ -217,6 +255,93 @@ def has_base_template(workspace: Path) -> bool:
     return get_base_template_path(workspace).exists()
 
 
+def _extract_section_text(markdown: str, section_title: str) -> str:
+    marker = f"## {section_title}"
+    start = markdown.find(marker)
+    if start < 0:
+        return ""
+    section_start = start + len(marker)
+    next_start = markdown.find("\n## ", section_start)
+    if next_start < 0:
+        next_start = len(markdown)
+    return markdown[section_start:next_start].strip()
+
+
+def _count_bullets_in_experience(markdown: str) -> int:
+    experience_text = _extract_section_text(markdown, "PROFESSIONAL EXPERIENCE")
+    return sum(
+        1 for line in experience_text.splitlines() if line.strip().startswith("-")
+    )
+
+
+def diff_cache_against_template(workspace: Path) -> dict[str, Any]:
+    template_path = get_base_template_path(workspace)
+    if not template_path.exists():
+        raise FileNotFoundError(f"Template does not exist: {template_path}")
+
+    cache_path = get_cache_path(workspace)
+    if not cache_path.exists():
+        raise FileNotFoundError(f"Cache does not exist: {cache_path}")
+
+    template_markdown = template_path.read_text(encoding="utf-8")
+    working_markdown = cache_path.read_text(encoding="utf-8")
+
+    normalized_template = normalize_resume_text_to_markdown(template_markdown)
+
+    summary_template = _extract_section_text(normalized_template, "SUMMARY")
+    summary_working = _extract_section_text(working_markdown, "SUMMARY")
+    skills_template = _extract_section_text(normalized_template, "TECHNICAL SKILLS")
+    skills_working = _extract_section_text(working_markdown, "TECHNICAL SKILLS")
+    experience_template = _extract_section_text(
+        normalized_template, "PROFESSIONAL EXPERIENCE"
+    )
+    experience_working = _extract_section_text(
+        working_markdown, "PROFESSIONAL EXPERIENCE"
+    )
+    education_template = _extract_section_text(normalized_template, "EDUCATION")
+    education_working = _extract_section_text(working_markdown, "EDUCATION")
+
+    template_skills = {
+        line.strip()
+        for line in skills_template.splitlines()
+        if line.strip().startswith("-")
+    }
+    working_skills = {
+        line.strip()
+        for line in skills_working.splitlines()
+        if line.strip().startswith("-")
+    }
+
+    return {
+        "summary": {
+            "status": "unchanged"
+            if " ".join(summary_template.split()) == " ".join(summary_working.split())
+            else "modified",
+            "template": " ".join(summary_template.split()),
+            "working": " ".join(summary_working.split()),
+        },
+        "skills": {
+            "status": "unchanged" if template_skills == working_skills else "modified",
+            "added": sorted(working_skills - template_skills),
+            "removed": sorted(template_skills - working_skills),
+        },
+        "experience": {
+            "status": "unchanged"
+            if " ".join(experience_template.split())
+            == " ".join(experience_working.split())
+            else "modified",
+            "bullet_count_template": _count_bullets_in_experience(normalized_template),
+            "bullet_count_working": _count_bullets_in_experience(working_markdown),
+        },
+        "education": {
+            "status": "unchanged"
+            if " ".join(education_template.split())
+            == " ".join(education_working.split())
+            else "modified"
+        },
+    }
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Manage resume-working.md cache file")
     parser.add_argument(
@@ -231,6 +356,7 @@ def _parse_args() -> argparse.Namespace:
             "template-use",
             "template-show",
             "template-check",
+            "diff",
         ],
         help="Action to execute",
     )
@@ -265,6 +391,15 @@ def main() -> int:
     if args.action == "show":
         try:
             print(read_cache_markdown(workspace))
+            return 0
+        except FileNotFoundError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+
+    if args.action == "diff":
+        try:
+            payload = diff_cache_against_template(workspace)
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
             return 0
         except FileNotFoundError as exc:
             print(str(exc), file=sys.stderr)
