@@ -28,6 +28,10 @@ EMAIL_PATTERN = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 PHONE_PATTERN = re.compile(r"(?:\+?\d[\d()\-\s]{7,}\d)")
 LINKEDIN_PATTERN = re.compile(r"linkedin\.com/", re.IGNORECASE)
 HTML_TAG_PATTERN = re.compile(r"</?[A-Za-z][^>]*>")
+PLACEHOLDER_PATTERN = re.compile(
+    r"\[(?:To be filled|Dates|Degree|School|Certification|Award|Project|Company|Title|Location)\]",
+    re.IGNORECASE,
+)
 
 
 def points_to_mm(value: float) -> float:
@@ -187,6 +191,7 @@ def build_quality_report(
     height_mm: float,
     has_text: bool,
     html_leak_count: int,
+    placeholders: list[str],
     margins: dict[str, float] | None,
     missing_sections: list[str],
     contact: dict[str, bool],
@@ -228,6 +233,16 @@ def build_quality_report(
             "name": "html_leak",
             "passed": html_leak_count == 0,
             "detail": {"leak_count": html_leak_count},
+        }
+    )
+
+    unique_placeholders = sorted(set(placeholders))
+    placeholders_ok = len(placeholders) == 0
+    checks.append(
+        {
+            "name": "placeholder_content",
+            "passed": placeholders_ok,
+            "detail": {"count": len(placeholders), "found": unique_placeholders},
         }
     )
 
@@ -321,7 +336,7 @@ def build_quality_report(
         }
     )
 
-    critical_pass = all(check["passed"] for check in checks[:10])
+    critical_pass = all(check["passed"] for check in checks[:11])
 
     return {
         "verdict": "PASS" if critical_pass else "NEED-ADJUSTMENT",
@@ -355,6 +370,9 @@ def main() -> int:
         layout_warnings = check_layout_warnings(lines)
 
         html_leaks = HTML_TAG_PATTERN.findall(full_text)
+
+    placeholders = PLACEHOLDER_PATTERN.findall(full_text)
+    unique_placeholders = sorted(set(placeholders))
 
     one_page = page_count == 1
     is_a4 = (
@@ -400,6 +418,7 @@ def main() -> int:
             height_mm=height_mm,
             has_text=has_text,
             html_leak_count=len(html_leaks),
+            placeholders=placeholders,
             margins=margins,
             missing_sections=missing_sections,
             contact={"email": has_email, "phone": has_phone, "linkedin": has_linkedin},
@@ -444,25 +463,32 @@ def main() -> int:
         f"Found {len(html_leaks)} suspected HTML tags",
     )
 
+    if placeholders:
+        print(
+            f"5. Placeholder Content: ✗ Found {len(placeholders)} placeholder(s): {', '.join(unique_placeholders)}"
+        )
+    else:
+        print("5. Placeholder Content: ✓ No placeholder content found")
+
     if margins is None:
         print(
-            "5. Bottom Margin: ! Unable to auto-estimate (manual verification recommended)"
+            "6. Bottom Margin: ! Unable to auto-estimate (manual verification recommended)"
         )
         print(
-            "6. Top Margin: ! Unable to auto-estimate (manual verification recommended)"
+            "7. Top Margin: ! Unable to auto-estimate (manual verification recommended)"
         )
         print(
-            "7. Left/Right Margins: ! Unable to auto-estimate (manual verification recommended)"
+            "8. Left/Right Margins: ! Unable to auto-estimate (manual verification recommended)"
         )
     else:
         print_result(
-            "5. Bottom Margin",
+            "6. Bottom Margin",
             bottom_margin_ok,
             f"{bottom_margin_mm:.2f}mm (target {args.min_bottom_mm}-{args.max_bottom_mm}mm)",
             f"{bottom_margin_mm:.2f}mm (exceeds target {args.min_bottom_mm}-{args.max_bottom_mm}mm)",
         )
         print_result(
-            "6. Top Margin",
+            "7. Top Margin",
             top_margin_ok,
             f"{top_margin_mm:.2f}mm (target {args.min_top_mm}-{args.max_top_mm}mm)",
             f"{top_margin_mm:.2f}mm (exceeds target {args.min_top_mm}-{args.max_top_mm}mm)",
@@ -470,26 +496,26 @@ def main() -> int:
         side_margin_ok = left_margin_ok and right_margin_ok
         if side_margin_ok:
             print(
-                f"7. Left/Right Margins: ✓ left {left_margin_mm:.2f}mm, right {right_margin_mm:.2f}mm "
+                f"8. Left/Right Margins: ✓ left {left_margin_mm:.2f}mm, right {right_margin_mm:.2f}mm "
                 f"(target {args.min_side_mm}-{args.max_side_mm}mm)"
             )
         else:
             print(
-                f"7. Left/Right Margins: ✗ left {left_margin_mm:.2f}mm, right {right_margin_mm:.2f}mm "
+                f"8. Left/Right Margins: ✗ left {left_margin_mm:.2f}mm, right {right_margin_mm:.2f}mm "
                 f"(target {args.min_side_mm}-{args.max_side_mm}mm)"
             )
 
     if sections_ok:
         print(
-            "8. Section Completeness: ✓ Summary/Skills/Experience/Education all identified"
+            "9. Section Completeness: ✓ Summary/Skills/Experience/Education all identified"
         )
     else:
         print(
-            f"8. Section Completeness: ✗ Missing sections: {', '.join(missing_sections)}"
+            f"9. Section Completeness: ✗ Missing sections: {', '.join(missing_sections)}"
         )
 
     print_result(
-        "9. Contact Info",
+        "10. Contact Info",
         contact_ok,
         "Detected Email + (Phone or LinkedIn)",
         "Incomplete contact info (need at least Email + Phone/LinkedIn)",
@@ -497,20 +523,20 @@ def main() -> int:
 
     if args.keyword:
         if not missing_keywords:
-            print(f"10. Keyword Coverage: ✓ All {len(args.keyword)} keywords matched")
+            print(f"11. Keyword Coverage: ✓ All {len(args.keyword)} keywords matched")
         else:
             print(
-                f"10. Keyword Coverage: ✗ Missing keywords: {', '.join(missing_keywords)}"
+                f"11. Keyword Coverage: ✗ Missing keywords: {', '.join(missing_keywords)}"
             )
     else:
-        print("10. Keyword Coverage: ! No keywords provided, skipped")
+        print("11. Keyword Coverage: ! No keywords provided, skipped")
 
     if layout_warnings:
-        print("11. Layout Warnings: ! Potential issues found")
+        print("12. Layout Warnings: ! Potential issues found")
         for issue in layout_warnings:
             print(f"   - {issue}")
     else:
-        print("11. Layout Warnings: ✓ No obvious issues found")
+        print("12. Layout Warnings: ✓ No obvious issues found")
 
     critical_pass = all(
         [
@@ -518,6 +544,7 @@ def main() -> int:
             is_a4,
             has_text,
             no_html,
+            not placeholders,
             sections_ok,
             contact_ok,
             bottom_margin_ok,

@@ -12,6 +12,7 @@ class QualityJsonOutputTest(unittest.TestCase):
             height_mm=297.0,
             has_text=True,
             html_leak_count=0,
+            placeholders=[],
             margins={"top": 5.0, "bottom": 5.0, "left": 15.0, "right": 15.0},
             missing_sections=[],
             contact={"email": True, "phone": True, "linkedin": False},
@@ -31,7 +32,7 @@ class QualityJsonOutputTest(unittest.TestCase):
         self.assertIn("verdict", report)
         self.assertEqual(report["verdict"], "PASS")
         self.assertIn("checks", report)
-        self.assertEqual(len(report["checks"]), 11)
+        self.assertEqual(len(report["checks"]), 12)
         for check in report["checks"]:
             self.assertIn("name", check)
             self.assertIn("passed", check)
@@ -44,6 +45,7 @@ class QualityJsonOutputTest(unittest.TestCase):
             height_mm=297.0,
             has_text=True,
             html_leak_count=0,
+            placeholders=[],
             margins={"top": 5.0, "bottom": 5.0, "left": 15.0, "right": 15.0},
             missing_sections=[],
             contact={"email": True, "phone": True, "linkedin": False},
@@ -68,6 +70,7 @@ class QualityJsonOutputTest(unittest.TestCase):
             height_mm=297.0,
             has_text=True,
             html_leak_count=0,
+            placeholders=[],
             margins=None,
             missing_sections=[],
             contact={"email": True, "phone": True, "linkedin": False},

@@ -35,10 +35,7 @@ class OutputBackupPolicyTest(unittest.TestCase):
                 / f"{old_backend.stem}_old_1.pdf"
             )
             ml_backup = (
-                output_dir
-                / "backup"
-                / "ML_Engineer"
-                / f"{old_ml.stem}_old_1.pdf"
+                output_dir / "backup" / "ML_Engineer" / f"{old_ml.stem}_old_1.pdf"
             )
 
             self.assertTrue(backend_backup.exists())
@@ -54,7 +51,9 @@ class OutputBackupPolicyTest(unittest.TestCase):
 
             backup_dir = output_dir / "backup" / "Backend_Engineer"
             backup_dir.mkdir(parents=True, exist_ok=True)
-            existing_backup = backup_dir / "02_10_Alice_Backend_Engineer_resume_old_1.pdf"
+            existing_backup = (
+                backup_dir / "02_10_Alice_Backend_Engineer_resume_old_1.pdf"
+            )
             write_dummy_pdf(existing_backup)
 
             archive_root_pdfs(output_dir)
