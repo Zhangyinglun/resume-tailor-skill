@@ -29,13 +29,23 @@
 
 ## Generation Methods
 
-### Method 1: Markdown Working Cache (Recommended)
+### Method 1: JSON Working Cache (Recommended)
 
 ```bash
-py -3 scripts/generate_final_resume.py --input-md cache/resume-working.md --output-file 02_10_Name_Backend_Engineer_resume.pdf --output-dir resume_output
+py -3 scripts/generate_final_resume.py --input-json cache/resume-working.json --output-file 02_10_Name_Backend_Engineer_resume.pdf --output-dir resume_output
 ```
 
-### Method 2: JSON Data
+### Method 1.1: JSON Working Cache + Auto-fit Layout
+
+```bash
+py -3 scripts/generate_final_resume.py --input-json cache/resume-working.json --output-file 02_10_Name_Backend_Engineer_resume.pdf --output-dir resume_output --auto-fit
+```
+
+Notes:
+- Auto-fit only adjusts layout parameters (font/spacing/margins).
+- Auto-fit does not rewrite resume content.
+
+### Method 2: JSON Data (Custom Path)
 
 ```bash
 py -3 scripts/generate_final_resume.py --input-json resume_content.json --output-file 02_10_Name_Backend_Engineer_resume.pdf --output-dir resume_output
@@ -66,9 +76,9 @@ py -3 scripts/resume_cache_manager.py template-show --workspace .
 **Generate initial resume based on JD (simplified workflow)**:
 
 ```text
-Step 1: Read full `cache/base-resume.md`
-Step 2: Model generates initial `cache/resume-working.md` based on JD
-Step 3: Continuously update `cache/resume-working.md` based on Q&A
+Step 1: Read full `cache/base-resume.json`
+Step 2: Model generates initial `cache/resume-working.json` based on JD
+Step 3: Continuously update `cache/resume-working.json` based on Q&A
 ```
 
 ### Temporary Working Cache Management
@@ -82,7 +92,7 @@ py -3 scripts/resume_cache_manager.py init --workspace . --input raw_resume.txt
 - Update cache:
 
 ```bash
-py -3 scripts/resume_cache_manager.py update --workspace . --input reviewed_resume.md
+py -3 scripts/resume_cache_manager.py update --workspace . --input reviewed_resume.json
 ```
 
 - Cleanup cache (optional, manual trigger):

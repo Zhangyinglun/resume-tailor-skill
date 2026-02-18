@@ -9,8 +9,10 @@
    - Run `template-check`
    - If not exists, request user to upload resume and execute `template-init`
    - Run `template-show` to read full template
-2. Collect JD (text/URL/file, required).
+2. Collect JD (text/URL/file, optional).
 3. Output P1/P2/P3 tiered diagnosis:
+   - If JD exists: diagnose against JD requirements.
+   - If JD is absent: diagnose against user-provided direction (for example, SDE + AI model engineering + Data Platform).
    - P1: Critical requirements
    - P2: Important qualifications
    - P3: Nice-to-haves
@@ -28,7 +30,7 @@
 
 ## Phase 3: Pre-Review Volume Gate
 
-Before outputting "Resume Full Preview", must check `cache/resume-working.md`.
+Before outputting "Resume Full Preview", must check `cache/resume-working.json`.
 
 ### Volume Thresholds (triggers consolidation if any exceeded)
 - Total word count: recommended 520-760
@@ -60,13 +62,14 @@ Before layout, output QA report covering these 4 categories:
 3. Quantified results: check four-element completeness for each experience
 4. ATS details: original keyword match, tense consistency, complete contact info
 
-Note: When outputting "Resume Full Preview", read directly from `cache/resume-working.md`, do not reconstruct from memory.
+Note: When outputting "Resume Full Preview", read directly from `cache/resume-working.json`, do not reconstruct from memory.
 
 ## Phase 5: PDF Generation and Quality Check
 1. Generate only after user explicitly approves full text.
 2. Call `pdf` skill first, then generate PDF.
 3. Priority command:
-   - `scripts/generate_final_resume.py --input-md cache/resume-working.md --output-file ... --output-dir resume_output`
+   - Default: `scripts/generate_final_resume.py --input-json cache/resume-working.json --output-file ... --output-dir resume_output`
+   - Auto-fit: `scripts/generate_final_resume.py --input-json cache/resume-working.json --output-file ... --output-dir resume_output --auto-fit`
 4. Quality check must cover:
    - A4
    - 1 page
@@ -75,6 +78,7 @@ Note: When outputting "Resume Full Preview", read directly from `cache/resume-wo
    - No HTML tag leakage
    - Bottom margin 3-8mm
 5. If not passing, fine-tune and regenerate until passing.
+   - In auto-fit mode, tuning is layout-only (font/spacing/margins); do not rewrite content automatically.
 6. If content is near page limit, use `--compact` or fine-tune scale parameters:
    - `--compact`: preset reduction of font size, line height, and spacing
    - `--font-size-scale 0.95`: slight font reduction
@@ -83,7 +87,7 @@ Note: When outputting "Resume Full Preview", read directly from `cache/resume-wo
 
 ## Phase 6: Wrap-up
 1. Update `cache/user-profile.md` (long-term preference and direction log).
-2. Retain `cache/resume-working.md` as baseline for future iterations.
+2. Retain `cache/resume-working.json` as baseline for future iterations.
 3. Provide extended suggestions only when user requests (interview points, cover letter opening, gap addressing).
 4. Remind user to review contact info and sensitive information.
 

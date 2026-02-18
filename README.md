@@ -15,7 +15,7 @@ An OpenCode Skill for job-targeted resume optimization. Quickly generate ATS-fri
 This skill automatically activates when you provide the following to OpenCode Agent:
 
 - Target position JD (Job Description)
-- Your existing resume (PDF / DOCX / Markdown all supported)
+- Your existing resume (PDF / DOCX / plain text all supported)
 - Explicitly request: ATS keyword alignment, job match optimization, compress to single page, or deliver PDF
 
 Typical trigger examples:
@@ -26,6 +26,10 @@ I have a Product Manager JD and my existing resume, help me optimize it into an 
 
 ```
 Based on this JD, analyze my resume match level and generate a targeted optimized version.
+```
+
+```
+Based on my resume, generate a general SDE resume focused on AI model engineering productionization and data platform capabilities.
 ```
 
 ## Installation
@@ -104,7 +108,7 @@ Close and reopen OpenCode session, skill will take effect.
 After skill activation, it automatically executes the following flow (no manual operation needed):
 
 ### 1. **JD Diagnosis**
-- Analyze match level between your existing resume and target JD
+- Analyze match level between your existing resume and target JD (or target direction if JD is absent)
 - Output P1 (strong match), P2 (medium match), P3 (weak match) evidence chains
 - Identify key capability gaps
 
@@ -140,8 +144,7 @@ After skill activation, it automatically executes the following flow (no manual 
 resume-tailor/
 ├── SKILL.md                         # Skill main doc and workflow constraints
 ├── scripts/                         # Core scripts
-│   ├── resume_cache_manager.py      # Cache management (reset/init/update)
-│   ├── resume_md_to_json.py         # Markdown to JSON
+│   ├── resume_cache_manager.py      # JSON cache management (reset/init/update/show)
 │   ├── generate_final_resume.py     # PDF generation entry
 │   └── check_pdf_quality.py         # PDF QC
 ├── templates/                       # PDF layout templates
@@ -150,6 +153,7 @@ resume-tailor/
 ├── references/                      # References
 │   ├── execution-checklist.md       # Full process checklist
 │   ├── ats-keywords-strategy.md     # ATS strategy
+│   ├── prompt-recipes.md            # Prompt templates
 │   ├── profile-cache-template.md    # User profile cache template
 │   └── resume-working-schema.md     # Working cache structure spec
 ├── tests/                           # Tests
@@ -170,7 +174,7 @@ resume-tailor/
 
 ```bash
 cd ~/.config/opencode/skills/resume-tailor
-pytest
+python3 -m pytest
 ```
 
 ### Verify Script Behavior
@@ -179,17 +183,17 @@ You can also run tools under `scripts/` individually for debugging:
 
 ```bash
 # Cache management
-python scripts/resume_cache_manager.py reset
-python scripts/resume_cache_manager.py init
-
-# Markdown to JSON
-python scripts/resume_md_to_json.py cache/resume-working.md -o output.json
+python3 scripts/resume_cache_manager.py reset
+python3 scripts/resume_cache_manager.py init
 
 # Generate PDF
-python scripts/generate_final_resume.py --input-md cache/resume-working.md
+python3 scripts/generate_final_resume.py --input-json cache/resume-working.json --output-file resume.pdf --output-dir resume_output
+
+# Generate PDF with auto-fit layout tuning
+python3 scripts/generate_final_resume.py --input-json cache/resume-working.json --output-file resume.pdf --output-dir resume_output --auto-fit
 
 # QC PDF
-python scripts/check_pdf_quality.py resume_output/resume_final.pdf
+python3 scripts/check_pdf_quality.py resume_output/resume.pdf
 ```
 
 ---
@@ -221,7 +225,7 @@ Workspace/
 │   └── backup/                  # Historical PDF backups
 └── cache/
     ├── user-profile.md          # Long-term preference cache
-    └── resume-working.md        # Current session resume body
+    └── resume-working.json      # Current session resume body
 ```
 
 ---
@@ -265,6 +269,10 @@ A: Yes. Generated PDF auto-checks the following:
 
 A: Edit `templates/modern_resume_template.py`, a ReportLab-based Python template. See `templates/README.md`.
 
+**Q: Can layout be tuned automatically without rewriting resume content?**
+
+A: Yes. Use `--auto-fit` in `scripts/generate_final_resume.py`. It searches layout parameters only and keeps JSON content unchanged.
+
 **Q: Will skill save my resume?**
 
 A: No. Skill directory itself is stateless. All cache and output files are in your workspace directory (`resume_output/` and `cache/`), won't commit to Git repo.
@@ -299,7 +307,7 @@ This skill references the following projects and best practices:
 当你向 OpenCode Agent 提供以下内容时，此 skill 会自动激活：
 
 - 目标岗位的 JD（职位描述）
-- 你的现有简历（PDF / DOCX / Markdown 均可）
+- 你的现有简历（PDF / DOCX / 纯文本 均可）
 - 明确提出需要：ATS 关键词对齐、岗位匹配优化、压缩到单页、或交付 PDF
 
 典型触发示例：
@@ -310,6 +318,10 @@ This skill references the following projects and best practices:
 
 ```
 根据这个 JD，分析我的简历匹配度，并生成针对性的优化版本。
+```
+
+```
+根据我的简历，生成一份通用 SDE 简历，重点突出 AI 模型工程化落地和 data platform 能力。
 ```
 
 ## 安装方法
@@ -376,7 +388,7 @@ git clone https://github.com/blader/humanizer humanizer
 
 ```bash
 cd ~/.config/opencode/skills/resume-tailor
-py -3 -m pip install -r requirements.txt
+python3 -m pip install -r requirements.txt
 ```
 
 **4. 重启 OpenCode**
@@ -388,7 +400,7 @@ py -3 -m pip install -r requirements.txt
 Skill 激活后会自动执行以下流程（无需手动操作）：
 
 ### 1. **JD 诊断**
-- 分析你的现有简历与目标 JD 的匹配度
+- 分析你的现有简历与目标 JD 的匹配度（若无 JD，则按目标方向诊断）
 - 输出 P1（强匹配）、P2（中匹配）、P3（弱匹配）证据链
 - 识别关键能力差距（gap）
 
@@ -400,6 +412,11 @@ Skill 激活后会自动执行以下流程（无需手动操作）：
 ### 3. **体量门禁**
 - 确保内容符合单页 A4 目标后再输出全文审阅
 - 调用 `humanizer` skill 去除 AI 痕迹
+- **体量阈值**（任一超标则触发压缩）：
+  - 总词数：推荐 520-760
+  - 非空行数：推荐 32-52
+  - 经历要点数：推荐 8-14
+  - 单条要点：不超过 2 行（约 28 个英文单词）
 
 ### 4. **PDF 生成与质检**
 - 获得你的批准后生成 A4 PDF
@@ -423,17 +440,18 @@ Skill 激活后会自动执行以下流程（无需手动操作）：
 ```
 resume-tailor/
 ├── SKILL.md                         # Skill 主说明与工作流约束
+├── AGENTS.md                        # Agent 执行规范与命令约定
 ├── scripts/                         # 核心脚本
-│   ├── resume_cache_manager.py      # 缓存管理（reset/init/update）
-│   ├── resume_md_to_json.py         # Markdown 转 JSON
+│   ├── resume_cache_manager.py      # JSON 缓存管理（reset/init/update/show）
 │   ├── generate_final_resume.py     # PDF 生成入口
 │   └── check_pdf_quality.py         # PDF 质检
 ├── templates/                       # PDF 排版模板
 │   ├── modern_resume_template.py    # ReportLab 模板
 │   └── README.md                    # 模板说明
 ├── references/                      # 参考资料
-│   ├── execution-checklist.md       # 全流程检查清单
+│   ├── execution-checklist.md       # 全流程检查清单（含体量阈值）
 │   ├── ats-keywords-strategy.md     # ATS 策略
+│   ├── prompt-recipes.md            # Prompt 模板
 │   ├── profile-cache-template.md    # 用户画像缓存模板
 │   └── resume-working-schema.md     # 工作缓存结构规范
 ├── tests/                           # 测试
@@ -454,7 +472,7 @@ resume-tailor/
 
 ```bash
 cd ~/.config/opencode/skills/resume-tailor
-pytest
+python3 -m pytest
 ```
 
 ### 验证脚本行为
@@ -463,17 +481,17 @@ pytest
 
 ```bash
 # 缓存管理
-python scripts/resume_cache_manager.py reset
-python scripts/resume_cache_manager.py init
-
-# Markdown 转 JSON
-python scripts/resume_md_to_json.py cache/resume-working.md -o output.json
+python3 scripts/resume_cache_manager.py reset
+python3 scripts/resume_cache_manager.py init
 
 # 生成 PDF
-python scripts/generate_final_resume.py --input-md cache/resume-working.md
+python3 scripts/generate_final_resume.py --input-json cache/resume-working.json --output-file resume.pdf --output-dir resume_output
+
+# 自动调参后生成 PDF（仅调版式，不改内容）
+python3 scripts/generate_final_resume.py --input-json cache/resume-working.json --output-file resume.pdf --output-dir resume_output --auto-fit
 
 # 质检 PDF
-python scripts/check_pdf_quality.py resume_output/resume_final.pdf
+python3 scripts/check_pdf_quality.py resume_output/resume.pdf
 ```
 
 ---
@@ -505,7 +523,7 @@ Skill 目录本身不存储任何个性化数据，所有缓存与输出文件�
 │   └── backup/                  # 历史 PDF 备份
 └── cache/
     ├── user-profile.md          # 长期偏好缓存
-    └── resume-working.md        # 当前会话简历正文
+    └── resume-working.json      # 当前会话简历正文
 ```
 
 ---
@@ -548,6 +566,10 @@ A: 可以。生成的 PDF 会自动质检以下项目：
 **Q: 如何自定义 PDF 模板样式？**
 
 A: 编辑 `templates/modern_resume_template.py`，这是一个基于 ReportLab 的 Python 模板。详见 `templates/README.md`。
+
+**Q: 可以自动调版式但不改简历内容吗？**
+
+A: 可以。使用 `scripts/generate_final_resume.py` 的 `--auto-fit`。它只搜索版式参数，不会改写 JSON 内容。
 
 **Q: Skill 会保存我的简历吗？**
 

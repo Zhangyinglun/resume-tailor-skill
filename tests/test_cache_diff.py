@@ -1,12 +1,14 @@
 import tempfile
 import unittest
+from copy import deepcopy
 from pathlib import Path
 
 from scripts.resume_cache_manager import (
     diff_cache_against_template,
     init_base_template_from_text,
     init_working_from_template,
-    update_cache_from_markdown,
+    read_cache_json,
+    update_cache_from_json,
 )
 
 
@@ -30,26 +32,6 @@ Education
 Example University | M.S. in CS | 2018 - 2020
 """
 
-MODIFIED_WORKING = """# HEADER
-Name: John Doe
-Contact: Seattle, WA | john@example.com | linkedin.com/in/johndoe
-
-## SUMMARY
-Senior backend engineer specializing in cloud-native distributed systems.
-
-## TECHNICAL SKILLS
-- Programming Languages: Python, Go, Kafka
-- Cloud: AWS, Kubernetes, Docker
-
-## PROFESSIONAL EXPERIENCE
-### Example Corp | Senior Engineer | Seattle, WA | 2021 - Present
-- Designed event-driven pipeline using Kafka, reduced latency by 35%.
-- Implemented microservices architecture.
-
-## EDUCATION
-- Example University | M.S. in CS | 2018 - 2020
-"""
-
 
 class CacheDiffTest(unittest.TestCase):
     def test_diff_detects_section_changes(self):
@@ -57,7 +39,20 @@ class CacheDiffTest(unittest.TestCase):
             workspace = Path(tmpdir)
             init_base_template_from_text(workspace, SAMPLE_TEMPLATE)
             init_working_from_template(workspace)
-            update_cache_from_markdown(workspace, MODIFIED_WORKING)
+
+            modified = read_cache_json(workspace)
+            modified["summary"] = (
+                "Senior backend engineer specializing in cloud-native distributed systems."
+            )
+            modified["skills"] = [
+                {"category": "Programming Languages", "items": "Python, Go, Kafka"},
+                {"category": "Cloud", "items": "AWS, Kubernetes, Docker"},
+            ]
+            modified["experience"][0]["bullets"] = [
+                "Designed event-driven pipeline using Kafka, reduced latency by 35%.",
+                "Implemented microservices architecture.",
+            ]
+            update_cache_from_json(workspace, modified)
 
             result = diff_cache_against_template(workspace)
 
@@ -72,7 +67,12 @@ class CacheDiffTest(unittest.TestCase):
             workspace = Path(tmpdir)
             init_base_template_from_text(workspace, SAMPLE_TEMPLATE)
             init_working_from_template(workspace)
-            update_cache_from_markdown(workspace, MODIFIED_WORKING)
+
+            modified = read_cache_json(workspace)
+            modified["experience"][0]["bullets"] = deepcopy(
+                modified["experience"][0]["bullets"][:2]
+            )
+            update_cache_from_json(workspace, modified)
 
             result = diff_cache_against_template(workspace)
 

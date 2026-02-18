@@ -19,6 +19,16 @@ ATS (Applicant Tracking System) filters resumes through the following methods:
 4. **Words in Preferred / Nice-to-have**: Bonus points, include if available, not forced
 5. **Industry terms in company description**: Demonstrates industry knowledge
 
+### Keyword Strategy Without JD (Direction-driven)
+
+When JD is unavailable, build a synthetic keyword pool from three layers:
+
+1. **Target role keywords**: e.g., Software Engineer, Backend Engineer, SDE
+2. **Capability intent keywords**: e.g., AI model engineering, productionization, model serving, RAG
+3. **System context keywords**: e.g., data platform, distributed systems, streaming, reliability, observability
+
+Then prioritize keywords by recurrence in the user prompt and by evidence availability in resume experience.
+
 ### Keyword Categories
 
 | Category | Extraction Strategy | Embedding Strategy |

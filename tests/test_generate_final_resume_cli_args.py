@@ -9,8 +9,8 @@ class GenerateFinalResumeCliArgsTest(unittest.TestCase):
     def test_parse_args_supports_layout_parameters(self):
         argv = [
             "generate_final_resume.py",
-            "--input-md",
-            "cache/resume-working.md",
+            "--input-json",
+            "cache/resume-working.json",
             "--output-file",
             "resume.pdf",
             "--font-size-scale",
@@ -28,6 +28,9 @@ class GenerateFinalResumeCliArgsTest(unittest.TestCase):
             "--margin-side-inch",
             "0.5",
             "--compact",
+            "--auto-fit",
+            "--auto-fit-max-trials",
+            "9",
         ]
         with patch.object(sys, "argv", argv):
             args = parse_args()
@@ -40,12 +43,14 @@ class GenerateFinalResumeCliArgsTest(unittest.TestCase):
         self.assertAlmostEqual(args.margin_bottom_mm, 4.0)
         self.assertAlmostEqual(args.margin_side_inch, 0.5)
         self.assertTrue(args.compact)
+        self.assertTrue(args.auto_fit)
+        self.assertEqual(args.auto_fit_max_trials, 9)
 
     def test_parse_args_layout_defaults(self):
         argv = [
             "generate_final_resume.py",
-            "--input-md",
-            "cache/resume-working.md",
+            "--input-json",
+            "cache/resume-working.json",
             "--output-file",
             "resume.pdf",
         ]
@@ -60,6 +65,20 @@ class GenerateFinalResumeCliArgsTest(unittest.TestCase):
         self.assertAlmostEqual(args.margin_bottom_mm, 5.0)
         self.assertAlmostEqual(args.margin_side_inch, 0.6)
         self.assertFalse(args.compact)
+        self.assertFalse(args.auto_fit)
+        self.assertEqual(args.auto_fit_max_trials, 12)
+
+    def test_parse_args_rejects_input_md(self):
+        argv = [
+            "generate_final_resume.py",
+            "--input-md",
+            "cache/resume-working.md",
+            "--output-file",
+            "resume.pdf",
+        ]
+        with patch.object(sys, "argv", argv):
+            with self.assertRaises(SystemExit):
+                parse_args()
 
 
 if __name__ == "__main__":

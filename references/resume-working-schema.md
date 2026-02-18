@@ -1,6 +1,6 @@
-# resume-working.md Structure Specification
+# resume-working.json Structure Specification
 
-Working cache file path: `cache/resume-working.md`
+Working cache file path: `cache/resume-working.json`
 
 Description:
 - This file is the "single source of truth for current resume content".
@@ -9,41 +9,55 @@ Description:
 
 ## Fixed Structure
 
-```markdown
-# HEADER
-Name: FULL NAME
-Contact: City, State | Phone | Email | LinkedIn
-
-## SUMMARY
-Summary sentence 1. Summary sentence 2.
-
-## TECHNICAL SKILLS
-- Programming Languages: Python, Go, Java
-- Cloud & DevOps: AWS, Kubernetes
-
-## PROFESSIONAL EXPERIENCE
-### Company | Title | Location | Dates
-- Bullet 1
-- Bullet 2
-
-## EDUCATION
-- School | Degree | Dates
+```json
+{
+  "name": "FULL NAME",
+  "contact": "City, State | Phone | Email | LinkedIn",
+  "summary": "Summary sentence 1. Summary sentence 2.",
+  "skills": [
+    {"category": "Programming Languages", "items": "Python, Go, Java"},
+    {"category": "Cloud & DevOps", "items": "AWS, Kubernetes"}
+  ],
+  "experience": [
+    {
+      "company": "Company",
+      "title": "Title",
+      "location": "Location",
+      "dates": "Dates",
+      "bullets": ["Bullet 1", "Bullet 2"]
+    }
+  ],
+  "education": [
+    {"school": "School", "degree": "Degree", "dates": "Dates"}
+  ],
+  "projects": [
+    {
+      "name": "Project",
+      "tech": "Python, FastAPI",
+      "dates": "2024",
+      "bullets": ["Project bullet"]
+    }
+  ],
+  "certifications": [
+    {"name": "Certification", "issuer": "Issuer", "dates": "2024"}
+  ],
+  "awards": [
+    {"name": "Award", "organization": "Organization", "dates": "2024"}
+  ]
+}
 ```
 
 ## Constraints
 
-- Headers must be the following 5 blocks:
-  - `# HEADER`
-  - `## SUMMARY`
-  - `## TECHNICAL SKILLS`
-  - `## PROFESSIONAL EXPERIENCE`
-  - `## EDUCATION`
-- Experience uses level-3 heading `###` to indicate individual experience entries.
-- Education uses `- School | Degree | Dates` single-line structure.
-- Skills uses `- Category: items` structure.
-- Optional sections can be included between PROFESSIONAL EXPERIENCE and EDUCATION:
-  - `## PROJECTS` - Uses `###` third-level headings for project entries (similar to experience format)
-  - `## CERTIFICATIONS` - Uses `- Name | Issuer | Dates` single-line structure
-  - `## AWARDS` - Uses `- Name | Organization | Dates` single-line structure
-- Optional sections are omitted if no relevant content exists.
+- Required keys:
+  - `name`
+  - `contact`
+  - `summary`
+  - `skills`
+  - `experience`
+  - `education`
+- `skills` uses `[{"category": "...", "items": "..."}]` structure.
+- `experience` uses company/title/location/dates/bullets structure.
+- `education` uses school/degree/dates structure.
+- Optional keys: `projects`, `certifications`, `awards`.
 - Do not insert analysis text unrelated to resume in cache file.

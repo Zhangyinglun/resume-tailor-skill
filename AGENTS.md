@@ -9,7 +9,7 @@
 - 依赖：`requirements.txt`（`reportlab`、`pdfplumber`、`pytest`）。
 - 测试：`unittest` 风格，使用 `pytest` 执行。
 - 关键目录：
-  - `scripts/`：缓存管理、Markdown 转 JSON、PDF 生成、PDF 质检。
+  - `scripts/`：JSON 缓存管理、PDF 生成、PDF 质检。
   - `templates/`：ReportLab 模板与 PDF 备份归档逻辑。
   - `tests/`：行为回归测试。
   - `docs/guide/`、`install/`：安装与 agent 执行规范。
@@ -69,11 +69,8 @@ python3 -m ruff check scripts templates tests
 ### 3.4 Build / 生成与质检
 
 ```bash
-# Markdown -> PDF
-python3 scripts/generate_final_resume.py --input-md cache/resume-working.md --output-file 02_10_Name_Backend_Engineer_resume.pdf --output-dir resume_output
-
 # JSON -> PDF
-python3 scripts/generate_final_resume.py --input-json resume_content.json --output-file 02_10_Name_Backend_Engineer_resume.pdf --output-dir resume_output
+python3 scripts/generate_final_resume.py --input-json cache/resume-working.json --output-file 02_10_Name_Backend_Engineer_resume.pdf --output-dir resume_output
 
 # PDF 质量检查
 python3 scripts/check_pdf_quality.py resume_output/02_10_Name_Backend_Engineer_resume.pdf

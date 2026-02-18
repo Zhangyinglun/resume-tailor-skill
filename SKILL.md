@@ -19,6 +19,7 @@ description: Use when user provides JD and existing resume, expecting job-target
 - **Fixed A4 + Single Page**: Default delivery 210mm x 297mm, 1 page.
 - **PDF Only Delivery**: Final output is PDF only.
 - **Call `pdf` skill before PDF actions**: Execute before initial generation, minor regeneration, or final export.
+- **Auto-fit Scope**: Automatic tuning may adjust layout parameters only; it must not rewrite resume content unless user explicitly asks.
 
 ## Stateless Boundary (Mandatory)
 - `resume-tailor` skill directory can only store "rules + templates + scripts + references".
@@ -27,12 +28,14 @@ description: Use when user provides JD and existing resume, expecting job-target
   - `resume_output/`: Latest PDF
   - `resume_output/backup/`: Historical PDF backups
   - `cache/user-profile.md`: Long-term preference cache
-  - `cache/resume-working.md`: Current session resume body
+  - `cache/resume-working.json`: Current session resume body
 
 ## Minimum Execution Flow
 1. **Session Startup Cleanup**: `scripts/resume_cache_manager.py reset`
 2. **Read Template Resume**: `template-check` → `template-show` (if not exists, then `template-init`)
-3. **JD Diagnosis**: Output P1/P2/P3 matches and gaps, generate initial version after user confirmation
+3. **Direction/JD Diagnosis**:
+   - With JD: Output P1/P2/P3 matches and gaps.
+   - Without JD: Build keyword pool from target direction (e.g., SDE + AI engineering + Data Platform) and produce P1/P2/P3 focus map.
 4. **Iterative Updates**: Only change 1 decision point per round, `update` after confirmation
 5. **Volume Gate**: First reduce to single-page target, then output full review text
 6. **QA + Dehumanization**: Call `humanizer`, complete structure/quantification/ATS checks
@@ -53,9 +56,8 @@ Education
 ```
 
 ## Script Responsibility Boundaries
-- `scripts/resume_cache_manager.py`: Manage `cache/resume-working.md` reset/init/update/show (`cleanup` only manual as needed), and `cache/base-resume.md` template-init/template-use/template-show/template-check.
-- `scripts/resume_md_to_json.py`: Convert standardized Markdown to template input JSON.
-- `scripts/generate_final_resume.py`: Accept `--input-md` or `--input-json` and generate final PDF.
+- `scripts/resume_cache_manager.py`: Manage `cache/resume-working.json` reset/init/update/show (`cleanup` only manual as needed), and `cache/base-resume.json` template-init/template-use/template-show/template-check.
+- `scripts/generate_final_resume.py`: Accept `--input-json`, optionally `--auto-fit`, and generate final PDF.
 - `scripts/check_pdf_quality.py`: Perform general format and text quality checks.
 - `templates/modern_resume_template.py`: Only responsible for PDF layout and export.
 
@@ -72,6 +74,7 @@ Education
 ## Reference Materials
 - Full process checklist and thresholds: `references/execution-checklist.md`
 - ATS strategy: `references/ats-keywords-strategy.md`
+- Prompt templates: `references/prompt-recipes.md`
 - Profile cache template: `references/profile-cache-template.md`
 - Working cache structure: `references/resume-working-schema.md`
 - Template instructions: `templates/README.md`

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Generate final resume PDF from JSON or Markdown content."""
+"""Generate final resume PDF from JSON content."""
 
 from __future__ import annotations
 
@@ -20,20 +20,17 @@ if str(SCRIPT_DIR) not in sys.path:
 
 from templates.modern_resume_template import generate_resume  # noqa: E402
 from templates.layout_settings import LayoutSettings  # noqa: E402
-from resume_md_to_json import markdown_to_content  # noqa: E402
+from layout_auto_tuner import auto_fit_layout  # noqa: E402
 
 REQUIRED_KEYS = ("name", "contact", "summary", "skills", "experience", "education")
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Render final resume PDF (A4 single-page template) from JSON or standardized Markdown."
+        description="Render final resume PDF (A4 single-page template) from JSON."
     )
-
-    source_group = parser.add_mutually_exclusive_group(required=True)
-    source_group.add_argument("--input-json", help="Resume content JSON file path")
-    source_group.add_argument(
-        "--input-md", help="Standardized resume Markdown file path"
+    parser.add_argument(
+        "--input-json", required=True, help="Resume content JSON file path"
     )
 
     parser.add_argument(
@@ -93,6 +90,17 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Enable compact mode (reduces spacing and font sizes)",
     )
+    parser.add_argument(
+        "--auto-fit",
+        action="store_true",
+        help="Auto-search layout parameters to maximize PDF quality checks",
+    )
+    parser.add_argument(
+        "--auto-fit-max-trials",
+        type=int,
+        default=12,
+        help="Maximum layout candidates to try in auto-fit mode (default: 12)",
+    )
     return parser.parse_args()
 
 
@@ -104,11 +112,6 @@ def load_json_content(input_path: Path) -> dict[str, Any]:
         raise ValueError("Input JSON must have a dictionary at the top level.")
 
     return data
-
-
-def load_markdown_content(input_path: Path) -> dict[str, Any]:
-    markdown = input_path.read_text(encoding="utf-8")
-    return markdown_to_content(markdown)
 
 
 def validate_content(content: dict[str, Any]) -> None:
@@ -135,28 +138,49 @@ def main() -> int:
         )
         return 1
 
-    source_path = Path(args.input_json or args.input_md).expanduser().resolve()
+    source_path = Path(args.input_json).expanduser().resolve()
     if not source_path.exists():
         print(f"Error: Input file does not exist: {source_path}", file=sys.stderr)
         return 1
 
-    try:
-        if args.input_json:
-            content = load_json_content(source_path)
-        else:
-            content = load_markdown_content(source_path)
+    if args.auto_fit_max_trials <= 0:
+        print("Error: --auto-fit-max-trials must be positive.", file=sys.stderr)
+        return 1
 
+    try:
+        content = load_json_content(source_path)
         validate_content(content)
-        layout = LayoutSettings(
-            font_size_scale=args.font_size_scale,
-            line_height_scale=args.line_height_scale,
-            section_spacing_scale=args.section_spacing_scale,
-            item_spacing_scale=args.item_spacing_scale,
-            margin_top_mm=args.margin_top_mm,
-            margin_bottom_mm=args.margin_bottom_mm,
-            margin_side_inch=args.margin_side_inch,
-            compact_mode=args.compact,
-        )
+
+        if args.auto_fit:
+            fit_result = auto_fit_layout(
+                content,
+                output_file=output_name,
+                max_trials=args.auto_fit_max_trials,
+            )
+            layout = fit_result.best_layout
+            failed_checks = [
+                check.get("name")
+                for check in fit_result.best_report.get("checks", [])
+                if check.get("passed") is False
+            ]
+            print(
+                f"Auto-fit finished: trials={fit_result.trials_run}, "
+                f"best_verdict={fit_result.best_report.get('verdict')}"
+            )
+            if failed_checks:
+                print(f"Auto-fit unresolved checks: {', '.join(failed_checks)}")
+        else:
+            layout = LayoutSettings(
+                font_size_scale=args.font_size_scale,
+                line_height_scale=args.line_height_scale,
+                section_spacing_scale=args.section_spacing_scale,
+                item_spacing_scale=args.item_spacing_scale,
+                margin_top_mm=args.margin_top_mm,
+                margin_bottom_mm=args.margin_bottom_mm,
+                margin_side_inch=args.margin_side_inch,
+                compact_mode=args.compact,
+            )
+
         output_path = generate_resume(
             output_name, content, base_dir=str(output_dir), layout=layout
         )
