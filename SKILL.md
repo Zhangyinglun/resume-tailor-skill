@@ -107,6 +107,8 @@ Education
 - `scripts/resume_cache_manager.py`: Manage `cache/resume-working.json` reset/init/update/show (`cleanup` only manual as needed), `cache/base-resume.json` template-init/template-use/template-show/template-check, and `cache/jd-analysis.json` jd-save/jd-show.
 - `scripts/generate_final_resume.py`: Accept `--input-json`, optionally `--auto-fit`, and generate final PDF.
 - `scripts/check_pdf_quality.py`: Perform general format and text quality checks.
+- `scripts/check_content_quality.py`: Content-level quality checks on resume JSON — bullet scoring, verb strength, quantification rate.
+- `scripts/resume_shared.py`: Shared utilities (validation, JSON I/O, parsing helpers) consumed by other scripts.
 - `templates/modern_resume_template.py`: Only responsible for PDF layout and export.
 
 ## Dependent Skills

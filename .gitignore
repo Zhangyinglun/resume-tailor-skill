@@ -2,13 +2,14 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.ruff_cache/
 
 # Local runtime outputs
 cache/
 _deps/
 resume_output/**/*.pdf
 /.opencode/plans/
-/YINGLUN_ZHANG_SDE_AI_Resume.pdf
+/*.pdf
 
 # IDE files
 .idea/
@@ -20,5 +21,6 @@ resume_output/**/*.pdf
 # Personal data
 raw_resume.txt
 
-# Claude Code local config
-.claude/
+# Claude Code local config (keep .claude/commands/ tracked)
+.claude/settings.local.json
+.claude/worktrees/

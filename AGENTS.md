@@ -9,8 +9,8 @@
 - 测试风格：`unittest` 编写，`pytest` 执行。
 
 ## 2) 目录速览
-- `scripts/`：`resume_cache_manager.py`、`generate_final_resume.py`、`check_pdf_quality.py`、`layout_auto_tuner.py`
-- `templates/`：`modern_resume_template.py`、`layout_settings.py`
+- `scripts/`：`resume_cache_manager.py`、`generate_final_resume.py`、`check_pdf_quality.py`、`check_content_quality.py`、`layout_auto_tuner.py`、`resume_shared.py`
+- `templates/`：`modern_resume_template.py`、`layout_settings.py`、`design_tokens.py`
 - `tests/`：回归测试
 - `references/`：策略和流程资料
 - `docs/guide/`、`install/`：安装和执行入口
@@ -18,11 +18,14 @@
 ## 3) 推荐阅读顺序
 1. `README.md`
 2. `SKILL.md`
-3. `scripts/resume_cache_manager.py`
-4. `scripts/generate_final_resume.py`
-5. `scripts/check_pdf_quality.py`
-6. `templates/modern_resume_template.py`
-7. `tests/test_resume_cache_flow.py`
+3. `scripts/resume_shared.py`
+4. `scripts/resume_cache_manager.py`
+5. `scripts/generate_final_resume.py`
+6. `scripts/check_pdf_quality.py`
+7. `scripts/check_content_quality.py`
+8. `templates/design_tokens.py`
+9. `templates/modern_resume_template.py`
+10. `tests/test_resume_cache_flow.py`
 
 ## 4) Build / Lint / Test 命令
 

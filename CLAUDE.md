@@ -58,7 +58,9 @@ Raw text / DOCX → resume_cache_manager.py → cache/resume-working.json
 | `resume_cache_manager.py` | JSON cache CRUD: reset, init, update, show, diff, template management |
 | `generate_final_resume.py` | PDF generation entry point with CLI args; delegates to template + auto-tuner |
 | `check_pdf_quality.py` | 12-check PDF QA (page count, A4 size, text layer, margins, sections, contacts, placeholders, etc.) |
+| `check_content_quality.py` | Content-level quality checks on resume JSON (bullet scoring, verb strength, quantification) |
 | `layout_auto_tuner.py` | Searches 12 preset layout candidates, picks optimal by QA pass + readability score |
+| `resume_shared.py` | Shared utilities: validation, JSON I/O, parsing helpers |
 
 ### Templates (`templates/`)
 
@@ -66,6 +68,7 @@ Raw text / DOCX → resume_cache_manager.py → cache/resume-working.json
 |------|------|
 | `modern_resume_template.py` | ReportLab PDF renderer (fonts, styles, section layout) |
 | `layout_settings.py` | Immutable dataclass for layout params (font/line/spacing scales, margins); auto-clamps to 0.7–1.3 |
+| `design_tokens.py` | Centralized design constants (base font sizes, leading, spacing) before layout scaling |
 
 ### Stateless Boundary
 
@@ -77,22 +80,13 @@ Raw text / DOCX → resume_cache_manager.py → cache/resume-working.json
 Required fields: `name`, `contact`, `summary`, `skills`, `experience`, `education`
 Optional fields: `projects`, `certifications`, `awards`
 
-## Code Style (from AGENTS.md)
+## Code Style
 
-- PEP 8, 4-space indent, `from __future__ import annotations` in all scripts
-- Type annotations: Python 3.10+ style (`list[str]`, `X | None`), public functions must have return types
-- Paths: use `pathlib.Path`, not `os.path`; explicit `encoding="utf-8"` for file I/O
-- CLI: `argparse` with `main() -> int` pattern and `raise SystemExit(main())` entry
-- Errors: `ValueError` for validation, `FileNotFoundError` with path in message; no broad `except Exception` in core logic
-- Imports: stdlib → third-party → local; no wildcard imports
-- Tests: one behavior per test, `tempfile.TemporaryDirectory()` for isolation, no network/external dependencies
+详细代码风格规范见 `AGENTS.md` 第 5 节。
 
 ## Pre-commit Checklist
 
-1. `python3 -m pytest -q` passes
-2. Run at least one affected CLI command end-to-end
-3. No unrelated large-scale formatting changes
-4. Output/cache paths comply with `.gitignore`
+详见 `AGENTS.md` 第 9 节。
 
 ## Key Constraints
 
