@@ -85,7 +85,7 @@ def register_fonts() -> tuple[str, str, str]:
                 italic="Calibri-Italic", boldItalic="Calibri-Bold",
             )
             return "Calibri", "Calibri-Bold", "Calibri-Italic"
-    except Exception:
+    except Exception:  # noqa: BLE001 — font registration may fail for many reasons (missing files, corrupt TTF, permission errors); fallback to Helvetica is intentional
         pass
 
     return "Helvetica", "Helvetica-Bold", "Helvetica-Oblique"

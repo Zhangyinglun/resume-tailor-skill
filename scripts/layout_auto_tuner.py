@@ -4,8 +4,6 @@
 
 from __future__ import annotations
 
-import json
-import subprocess
 import tempfile
 from contextlib import redirect_stdout
 from dataclasses import dataclass
@@ -13,8 +11,17 @@ from io import StringIO
 from pathlib import Path
 from typing import Any
 
+from scripts.check_pdf_quality import DEFAULT_MARGIN_THRESHOLDS, check_pdf_file
 from templates.layout_settings import LayoutSettings
 from templates.modern_resume_template import generate_resume
+
+# Midpoint between min and max bottom margin thresholds.
+# Below this → content is too close to page edge → shrink to reclaim space.
+# Above this → too much whitespace at bottom → expand to fill space.
+_BOTTOM_MARGIN_MID_MM = (
+    DEFAULT_MARGIN_THRESHOLDS["min_bottom_mm"]
+    + DEFAULT_MARGIN_THRESHOLDS["max_bottom_mm"]
+) / 2
 
 # Checks that layout tuning can potentially fix (margins, page overflow).
 LAYOUT_FIXABLE_CHECKS = {"page_count", "bottom_margin", "top_margin", "side_margins"}
@@ -135,7 +142,7 @@ def _diagnose_direction(report: dict[str, Any]) -> str:
     bottom = checks.get("bottom_margin", {})
     bottom_mm = bottom.get("detail", {}).get("bottom_mm")
     if bottom_mm is not None and bottom.get("passed") is False:
-        return "expand" if bottom_mm > 8.0 else "shrink"
+        return "expand" if bottom_mm > _BOTTOM_MARGIN_MID_MM else "shrink"
 
     if _failed_checks(report) & LAYOUT_FIXABLE_CHECKS:
         return "shrink"
@@ -181,14 +188,7 @@ def score_trial(trial: AutoFitTrial) -> tuple[int, int, int, float, float]:
 
 
 def _run_quality_check(pdf_path: Path) -> dict[str, Any]:
-    script = Path(__file__).resolve().parent / "check_pdf_quality.py"
-    result = subprocess.run(
-        ["python3", str(script), str(pdf_path), "--json"],
-        capture_output=True, text=True, check=False,
-    )
-    if not result.stdout.strip():
-        raise ValueError(f"Quality checker returned empty output: {result.stderr}")
-    return json.loads(result.stdout.strip())
+    return check_pdf_file(pdf_path)
 
 
 def _run_trial(content: dict[str, Any], output_file: str, layout: LayoutSettings, trial_dir: Path) -> AutoFitTrial:

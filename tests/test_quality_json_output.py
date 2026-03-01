@@ -4,7 +4,7 @@ import unittest
 from scripts.check_pdf_quality import build_quality_report
 
 _DEFAULT_THRESHOLDS = {
-    "min_bottom_mm": 3.0, "max_bottom_mm": 8.0,
+    "min_bottom_mm": 3.0, "max_bottom_mm": 12.0,
     "min_top_mm": 3.0, "max_top_mm": 20.0,
     "min_side_mm": 10.0, "max_side_mm": 25.0,
 }

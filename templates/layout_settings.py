@@ -6,6 +6,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+# Compact mode defaults: tuned for readability at reduced size.
+# Intentionally less aggressive than earlier values (section_spacing 0.80→0.88,
+# item_spacing 0.75→0.85) to avoid cramped layouts; the auto-fit engine handles
+# deeper compression via its own candidate presets when needed.
 _COMPACT_DEFAULTS = {
     "font_size": 0.92,
     "line_height": 0.88,

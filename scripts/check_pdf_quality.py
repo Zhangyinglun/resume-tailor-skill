@@ -196,7 +196,8 @@ def build_quality_report(
         "detail": {"warnings": layout_warnings},
     })
 
-    critical_pass = all(check["passed"] for check in checks[:11])
+    _NON_CRITICAL_CHECKS = {"layout_warnings"}
+    critical_pass = all(c["passed"] for c in checks if c["name"] not in _NON_CRITICAL_CHECKS)
     return {"verdict": "PASS" if critical_pass else "NEED-ADJUSTMENT", "checks": checks}
 
 
@@ -293,27 +294,40 @@ def _format_text_report(report: dict[str, Any], pdf_name: str, args: argparse.Na
     return "\n".join(lines)
 
 
-def main() -> int:
-    args = parse_args()
-    pdf_path = Path(args.pdf_path).expanduser().resolve()
+DEFAULT_MARGIN_THRESHOLDS: dict[str, float] = {
+    "min_bottom_mm": 3.0,
+    "max_bottom_mm": 12.0,
+    "min_top_mm": 3.0,
+    "max_top_mm": 20.0,
+    "min_side_mm": 10.0,
+    "max_side_mm": 25.0,
+}
 
-    if not pdf_path.exists():
-        print(f"Error: File does not exist: {pdf_path}", file=sys.stderr)
-        return 1
+
+def check_pdf_file(
+    pdf_path: Path,
+    *,
+    keywords: list[str] | None = None,
+    margin_thresholds: dict[str, float] | None = None,
+) -> dict[str, Any]:
+    """Run full quality check on a PDF file and return the report dict.
+
+    This is the programmatic entry point — no subprocess needed.
+    """
+    thresholds = {**DEFAULT_MARGIN_THRESHOLDS, **(margin_thresholds or {})}
+    kw_list = keywords or []
 
     with pdfplumber.open(pdf_path) as pdf:
         first_page = pdf.pages[0]
         full_text = "\n".join((page.extract_text() or "") for page in pdf.pages)
         lines = [line.strip() for line in full_text.splitlines() if line.strip()]
 
-        # Collect all data
         upper_text = full_text.upper()
         missing_sections = [
             name for name, options in SECTION_KEYWORDS.items()
             if not any(opt in upper_text for opt in options)
         ]
 
-        # Layout warnings
         layout_warnings: list[str] = []
         role_time = re.compile(r"^[A-Za-z][A-Za-z/&,\-\s]{2,70}\s+\d{4}\s*-\s*(?:\d{4}|Present)$")
         company_hint = re.compile(r"(?:Inc\.?|LLC|Ltd\.?|Corp\.?|Company|University|College|Institute)", re.IGNORECASE)
@@ -323,7 +337,7 @@ def main() -> int:
             if line == lines[i + 1]:
                 layout_warnings.append(f"Found consecutive duplicate line: {line}")
 
-        report = build_quality_report(
+        return build_quality_report(
             page_count=len(pdf.pages),
             width_mm=points_to_mm(first_page.width),
             height_mm=points_to_mm(first_page.height),
@@ -337,18 +351,33 @@ def main() -> int:
                 "phone": bool(PHONE_PATTERN.search(full_text)),
                 "linkedin": bool(LINKEDIN_PATTERN.search(full_text)),
             },
-            missing_keywords=[kw for kw in args.keyword if kw.lower() not in full_text.lower()] if args.keyword else [],
-            provided_keywords=args.keyword,
+            missing_keywords=[kw for kw in kw_list if kw.lower() not in full_text.lower()] if kw_list else [],
+            provided_keywords=kw_list,
             layout_warnings=layout_warnings,
-            margin_thresholds={
-                "min_bottom_mm": args.min_bottom_mm,
-                "max_bottom_mm": args.max_bottom_mm,
-                "min_top_mm": args.min_top_mm,
-                "max_top_mm": args.max_top_mm,
-                "min_side_mm": args.min_side_mm,
-                "max_side_mm": args.max_side_mm,
-            },
+            margin_thresholds=thresholds,
         )
+
+
+def main() -> int:
+    args = parse_args()
+    pdf_path = Path(args.pdf_path).expanduser().resolve()
+
+    if not pdf_path.exists():
+        print(f"Error: File does not exist: {pdf_path}", file=sys.stderr)
+        return 1
+
+    report = check_pdf_file(
+        pdf_path,
+        keywords=args.keyword,
+        margin_thresholds={
+            "min_bottom_mm": args.min_bottom_mm,
+            "max_bottom_mm": args.max_bottom_mm,
+            "min_top_mm": args.min_top_mm,
+            "max_top_mm": args.max_top_mm,
+            "min_side_mm": args.min_side_mm,
+            "max_side_mm": args.max_side_mm,
+        },
+    )
 
     if args.json_output:
         print(json.dumps(report, ensure_ascii=False, indent=2))
