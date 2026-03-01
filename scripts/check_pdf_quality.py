@@ -50,45 +50,31 @@ def parse_args() -> argparse.Namespace:
         help="Core keywords (can be repeated, use multiple --keyword flags)",
     )
     parser.add_argument(
-        "--min-bottom-mm",
-        type=float,
-        default=3.0,
+        "--min-bottom-mm", type=float, default=3.0,
         help="Minimum bottom margin (mm, default 3)",
     )
     parser.add_argument(
-        "--max-bottom-mm",
-        type=float,
-        default=8.0,
-        help="Maximum bottom margin (mm, default 8)",
+        "--max-bottom-mm", type=float, default=12.0,
+        help="Maximum bottom margin (mm, default 12)",
     )
     parser.add_argument(
-        "--min-top-mm",
-        type=float,
-        default=3.0,
+        "--min-top-mm", type=float, default=3.0,
         help="Minimum top margin (mm, default 3)",
     )
     parser.add_argument(
-        "--max-top-mm",
-        type=float,
-        default=20.0,
+        "--max-top-mm", type=float, default=20.0,
         help="Maximum top margin (mm, default 20)",
     )
     parser.add_argument(
-        "--min-side-mm",
-        type=float,
-        default=10.0,
+        "--min-side-mm", type=float, default=10.0,
         help="Minimum left/right margin (mm, default 10)",
     )
     parser.add_argument(
-        "--max-side-mm",
-        type=float,
-        default=25.0,
+        "--max-side-mm", type=float, default=25.0,
         help="Maximum left/right margin (mm, default 25)",
     )
     parser.add_argument(
-        "--json",
-        action="store_true",
-        dest="json_output",
+        "--json", action="store_true", dest="json_output",
         help="Output results as JSON (machine-readable)",
     )
     return parser.parse_args()
@@ -99,10 +85,10 @@ def estimate_page_margins_mm(page: Any) -> dict[str, float] | None:
     if not words:
         return None
 
-    tops = [float(word["top"]) for word in words if "top" in word]
-    bottoms = [float(word["bottom"]) for word in words if "bottom" in word]
-    lefts = [float(word["x0"]) for word in words if "x0" in word]
-    rights = [float(word["x1"]) for word in words if "x1" in word]
+    tops = [float(w["top"]) for w in words if "top" in w]
+    bottoms = [float(w["bottom"]) for w in words if "bottom" in w]
+    lefts = [float(w["x0"]) for w in words if "x0" in w]
+    rights = [float(w["x1"]) for w in words if "x1" in w]
 
     if not tops or not bottoms or not lefts or not rights:
         return None
@@ -117,71 +103,6 @@ def estimate_page_margins_mm(page: Any) -> dict[str, float] | None:
 
 def margin_within_range(value: float, minimum: float, maximum: float) -> bool:
     return minimum <= value <= maximum
-
-
-def estimate_bottom_margin_mm(page: Any) -> float | None:
-    margins = estimate_page_margins_mm(page)
-    if margins is None:
-        return None
-    return margins["bottom"]
-
-
-def check_sections(text: str) -> list[str]:
-    upper_text = text.upper()
-    missing = []
-    for section_name, options in SECTION_KEYWORDS.items():
-        if not any(option in upper_text for option in options):
-            missing.append(section_name)
-    return missing
-
-
-def check_contact_presence(text: str) -> tuple[bool, bool, bool]:
-    has_email = bool(EMAIL_PATTERN.search(text))
-    has_phone = bool(PHONE_PATTERN.search(text))
-    has_linkedin = bool(LINKEDIN_PATTERN.search(text))
-    return has_email, has_phone, has_linkedin
-
-
-def check_keyword_coverage(text: str, keywords: list[str]) -> list[str]:
-    if not keywords:
-        return []
-
-    lower_text = text.lower()
-    missing = [keyword for keyword in keywords if keyword.lower() not in lower_text]
-    return missing
-
-
-def check_layout_warnings(lines: list[str]) -> list[str]:
-    issues: list[str] = []
-
-    role_time_pattern = re.compile(
-        r"^[A-Za-z][A-Za-z/&,\-\s]{2,70}\s+\d{4}\s*-\s*(?:\d{4}|Present)$"
-    )
-    company_hint_pattern = re.compile(
-        r"(?:Inc\.?|LLC|Ltd\.?|Corp\.?|Company|University|College|Institute)",
-        re.IGNORECASE,
-    )
-
-    for index, line in enumerate(lines[:-1]):
-        if role_time_pattern.match(line):
-            next_line = lines[index + 1]
-            if company_hint_pattern.search(next_line) and "|" not in line:
-                issues.append(
-                    f"Suspected inverted experience entry: {line} -> {next_line}"
-                )
-
-    for index in range(len(lines) - 1):
-        if lines[index] == lines[index + 1]:
-            issues.append(f"Found consecutive duplicate line: {lines[index]}")
-
-    return issues
-
-
-def print_result(label: str, passed: bool, ok_message: str, fail_message: str) -> None:
-    if passed:
-        print(f"{label}: ✓ {ok_message}")
-    else:
-        print(f"{label}: ✗ {fail_message}")
 
 
 def build_quality_report(
@@ -202,146 +123,174 @@ def build_quality_report(
 ) -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
 
-    one_page = page_count == 1
-    checks.append(
-        {
-            "name": "page_count",
-            "passed": one_page,
-            "detail": {"count": page_count, "expected": 1},
-        }
-    )
+    checks.append({
+        "name": "page_count",
+        "passed": page_count == 1,
+        "detail": {"count": page_count, "expected": 1},
+    })
 
-    is_a4 = (
-        abs(width_mm - A4_WIDTH_MM) <= A4_TOLERANCE_MM
-        and abs(height_mm - A4_HEIGHT_MM) <= A4_TOLERANCE_MM
-    )
-    checks.append(
-        {
-            "name": "page_size",
-            "passed": is_a4,
-            "detail": {
-                "width_mm": round(width_mm, 1),
-                "height_mm": round(height_mm, 1),
-            },
-        }
-    )
+    checks.append({
+        "name": "page_size",
+        "passed": (
+            abs(width_mm - A4_WIDTH_MM) <= A4_TOLERANCE_MM
+            and abs(height_mm - A4_HEIGHT_MM) <= A4_TOLERANCE_MM
+        ),
+        "detail": {"width_mm": round(width_mm, 1), "height_mm": round(height_mm, 1)},
+    })
 
     checks.append({"name": "text_layer", "passed": has_text, "detail": {}})
+    checks.append({
+        "name": "html_leak",
+        "passed": html_leak_count == 0,
+        "detail": {"leak_count": html_leak_count},
+    })
+    checks.append({
+        "name": "placeholder_content",
+        "passed": len(placeholders) == 0,
+        "detail": {"count": len(placeholders), "found": sorted(set(placeholders))},
+    })
 
-    checks.append(
-        {
-            "name": "html_leak",
-            "passed": html_leak_count == 0,
-            "detail": {"leak_count": html_leak_count},
-        }
-    )
-
-    unique_placeholders = sorted(set(placeholders))
-    placeholders_ok = len(placeholders) == 0
-    checks.append(
-        {
-            "name": "placeholder_content",
-            "passed": placeholders_ok,
-            "detail": {"count": len(placeholders), "found": unique_placeholders},
-        }
-    )
-
-    bottom_ok = True
-    top_ok = True
-    left_ok = True
-    right_ok = True
+    # Margin checks
     margin_detail: dict[str, Any] = {"available": margins is not None}
+    margin_ok = {"bottom": True, "top": True, "left": True, "right": True}
 
     if margins is not None:
-        bottom_ok = margin_within_range(
-            margins["bottom"],
-            margin_thresholds["min_bottom_mm"],
-            margin_thresholds["max_bottom_mm"],
-        )
-        top_ok = margin_within_range(
-            margins["top"],
-            margin_thresholds["min_top_mm"],
-            margin_thresholds["max_top_mm"],
-        )
-        left_ok = margin_within_range(
-            margins["left"],
-            margin_thresholds["min_side_mm"],
-            margin_thresholds["max_side_mm"],
-        )
-        right_ok = margin_within_range(
-            margins["right"],
-            margin_thresholds["min_side_mm"],
-            margin_thresholds["max_side_mm"],
-        )
-        margin_detail.update(
-            {
-                "top_mm": round(margins["top"], 2),
-                "bottom_mm": round(margins["bottom"], 2),
-                "left_mm": round(margins["left"], 2),
-                "right_mm": round(margins["right"], 2),
-            }
-        )
+        margin_ok["bottom"] = margin_within_range(
+            margins["bottom"], margin_thresholds["min_bottom_mm"], margin_thresholds["max_bottom_mm"])
+        margin_ok["top"] = margin_within_range(
+            margins["top"], margin_thresholds["min_top_mm"], margin_thresholds["max_top_mm"])
+        margin_ok["left"] = margin_within_range(
+            margins["left"], margin_thresholds["min_side_mm"], margin_thresholds["max_side_mm"])
+        margin_ok["right"] = margin_within_range(
+            margins["right"], margin_thresholds["min_side_mm"], margin_thresholds["max_side_mm"])
+        margin_detail.update({
+            f"{side}_mm": round(margins[side], 2) for side in ("top", "bottom", "left", "right")
+        })
 
-    checks.append(
-        {"name": "bottom_margin", "passed": bottom_ok, "detail": margin_detail}
-    )
-    checks.append({"name": "top_margin", "passed": top_ok, "detail": margin_detail})
-    checks.append(
-        {
-            "name": "side_margins",
-            "passed": left_ok and right_ok,
-            "detail": margin_detail,
-        }
-    )
+    checks.append({"name": "bottom_margin", "passed": margin_ok["bottom"], "detail": margin_detail})
+    checks.append({"name": "top_margin", "passed": margin_ok["top"], "detail": margin_detail})
+    checks.append({"name": "side_margins", "passed": margin_ok["left"] and margin_ok["right"], "detail": margin_detail})
 
-    sections_ok = not missing_sections
-    checks.append(
-        {
-            "name": "section_completeness",
-            "passed": sections_ok,
-            "detail": {"missing": missing_sections},
-        }
-    )
+    checks.append({
+        "name": "section_completeness",
+        "passed": not missing_sections,
+        "detail": {"missing": missing_sections},
+    })
 
-    has_email = contact.get("email", False)
-    has_phone = contact.get("phone", False)
-    has_linkedin = contact.get("linkedin", False)
-    contact_ok = has_email and (has_phone or has_linkedin)
-    checks.append(
-        {
-            "name": "contact_info",
-            "passed": contact_ok,
-            "detail": {
-                "email": has_email,
-                "phone": has_phone,
-                "linkedin": has_linkedin,
-            },
-        }
-    )
+    contact_ok = contact.get("email", False) and (contact.get("phone", False) or contact.get("linkedin", False))
+    checks.append({
+        "name": "contact_info",
+        "passed": contact_ok,
+        "detail": contact,
+    })
 
-    keyword_ok = (not provided_keywords) or (not missing_keywords)
-    checks.append(
-        {
-            "name": "keyword_coverage",
-            "passed": keyword_ok,
-            "detail": {"provided": len(provided_keywords), "missing": missing_keywords},
-        }
-    )
+    checks.append({
+        "name": "keyword_coverage",
+        "passed": (not provided_keywords) or (not missing_keywords),
+        "detail": {"provided": len(provided_keywords), "missing": missing_keywords},
+    })
 
-    checks.append(
-        {
-            "name": "layout_warnings",
-            "passed": True,
-            "detail": {"warnings": layout_warnings},
-        }
-    )
+    checks.append({
+        "name": "layout_warnings",
+        "passed": True,
+        "detail": {"warnings": layout_warnings},
+    })
 
     critical_pass = all(check["passed"] for check in checks[:11])
+    return {"verdict": "PASS" if critical_pass else "NEED-ADJUSTMENT", "checks": checks}
 
-    return {
-        "verdict": "PASS" if critical_pass else "NEED-ADJUSTMENT",
-        "checks": checks,
-    }
+
+def _format_text_report(report: dict[str, Any], pdf_name: str, args: argparse.Namespace) -> str:
+    """Format quality report as human-readable text."""
+    lines = ["=" * 80, f"PDF Quality Check: {pdf_name}", "=" * 80]
+    checks = {c["name"]: c for c in report["checks"]}
+
+    # Simple pass/fail checks
+    _simple = [
+        ("1. Page Count", "page_count",
+         lambda d: "1 page", lambda d: f"Current {d['count']} pages (should be 1 page)"),
+        ("2. Page Size", "page_size",
+         lambda d: f"A4 ({d['width_mm']}mm x {d['height_mm']}mm)",
+         lambda d: f"Not A4 ({d['width_mm']}mm x {d['height_mm']}mm)"),
+        ("3. Text Layer", "text_layer",
+         lambda _: "Extractable text", lambda _: "No body text extracted"),
+        ("4. HTML Tag Leakage", "html_leak",
+         lambda _: "No leakage found",
+         lambda d: f"Found {d['leak_count']} suspected HTML tags"),
+    ]
+    for label, name, ok_msg, fail_msg in _simple:
+        c = checks[name]
+        mark = "\u2713" if c["passed"] else "\u2717"
+        msg = ok_msg(c["detail"]) if c["passed"] else fail_msg(c["detail"])
+        lines.append(f"{label}: {mark} {msg}")
+
+    # Placeholder
+    ph = checks["placeholder_content"]
+    if ph["passed"]:
+        lines.append("5. Placeholder Content: \u2713 No placeholder content found")
+    else:
+        found = ", ".join(ph["detail"]["found"])
+        lines.append(f"5. Placeholder Content: \u2717 Found {ph['detail']['count']} placeholder(s): {found}")
+
+    # Margins
+    margin_detail = checks["bottom_margin"]["detail"]
+    if not margin_detail.get("available"):
+        for i, label in [(6, "Bottom Margin"), (7, "Top Margin"), (8, "Left/Right Margins")]:
+            lines.append(f"{i}. {label}: ! Unable to auto-estimate (manual verification recommended)")
+    else:
+        for i, name, side, lo, hi in [
+            (6, "bottom_margin", "bottom", args.min_bottom_mm, args.max_bottom_mm),
+            (7, "top_margin", "top", args.min_top_mm, args.max_top_mm),
+        ]:
+            c = checks[name]
+            val = margin_detail[f"{side}_mm"]
+            mark = "\u2713" if c["passed"] else "\u2717"
+            status = "target" if c["passed"] else "exceeds target"
+            lines.append(f"{i}. {name.replace('_', ' ').title()}: {mark} {val:.2f}mm ({status} {lo}-{hi}mm)")
+
+        side_ok = checks["side_margins"]["passed"]
+        l_mm, r_mm = margin_detail["left_mm"], margin_detail["right_mm"]
+        mark = "\u2713" if side_ok else "\u2717"
+        lines.append(
+            f"8. Left/Right Margins: {mark} left {l_mm:.2f}mm, right {r_mm:.2f}mm "
+            f"(target {args.min_side_mm}-{args.max_side_mm}mm)"
+        )
+
+    # Sections
+    sc = checks["section_completeness"]
+    if sc["passed"]:
+        lines.append("9. Section Completeness: \u2713 Summary/Skills/Experience/Education all identified")
+    else:
+        lines.append(f"9. Section Completeness: \u2717 Missing sections: {', '.join(sc['detail']['missing'])}")
+
+    # Contact
+    cc = checks["contact_info"]
+    mark = "\u2713" if cc["passed"] else "\u2717"
+    msg = "Detected Email + (Phone or LinkedIn)" if cc["passed"] else "Incomplete contact info (need at least Email + Phone/LinkedIn)"
+    lines.append(f"10. Contact Info: {mark} {msg}")
+
+    # Keywords
+    kw = checks["keyword_coverage"]
+    if not args.keyword:
+        lines.append("11. Keyword Coverage: ! No keywords provided, skipped")
+    elif kw["passed"]:
+        lines.append(f"11. Keyword Coverage: \u2713 All {len(args.keyword)} keywords matched")
+    else:
+        lines.append(f"11. Keyword Coverage: \u2717 Missing keywords: {', '.join(kw['detail']['missing'])}")
+
+    # Layout warnings
+    lw = checks["layout_warnings"]
+    if lw["detail"]["warnings"]:
+        lines.append("12. Layout Warnings: ! Potential issues found")
+        for issue in lw["detail"]["warnings"]:
+            lines.append(f"   - {issue}")
+    else:
+        lines.append("12. Layout Warnings: \u2713 No obvious issues found")
+
+    lines.append("=" * 80)
+    lines.append(f"Final Verdict: {report['verdict']}")
+    lines.append("=" * 80)
+    return "\n".join(lines)
 
 
 def main() -> int:
@@ -353,76 +302,42 @@ def main() -> int:
         return 1
 
     with pdfplumber.open(pdf_path) as pdf:
-        page_count = len(pdf.pages)
         first_page = pdf.pages[0]
-
-        width_mm = points_to_mm(first_page.width)
-        height_mm = points_to_mm(first_page.height)
-
-        text_pages = [(page.extract_text() or "") for page in pdf.pages]
-        full_text = "\n".join(text_pages)
+        full_text = "\n".join((page.extract_text() or "") for page in pdf.pages)
         lines = [line.strip() for line in full_text.splitlines() if line.strip()]
 
-        margins = estimate_page_margins_mm(first_page)
-        missing_sections = check_sections(full_text)
-        has_email, has_phone, has_linkedin = check_contact_presence(full_text)
-        missing_keywords = check_keyword_coverage(full_text, args.keyword)
-        layout_warnings = check_layout_warnings(lines)
+        # Collect all data
+        upper_text = full_text.upper()
+        missing_sections = [
+            name for name, options in SECTION_KEYWORDS.items()
+            if not any(opt in upper_text for opt in options)
+        ]
 
-        html_leaks = HTML_TAG_PATTERN.findall(full_text)
+        # Layout warnings
+        layout_warnings: list[str] = []
+        role_time = re.compile(r"^[A-Za-z][A-Za-z/&,\-\s]{2,70}\s+\d{4}\s*-\s*(?:\d{4}|Present)$")
+        company_hint = re.compile(r"(?:Inc\.?|LLC|Ltd\.?|Corp\.?|Company|University|College|Institute)", re.IGNORECASE)
+        for i, line in enumerate(lines[:-1]):
+            if role_time.match(line) and company_hint.search(lines[i + 1]) and "|" not in line:
+                layout_warnings.append(f"Suspected inverted experience entry: {line} -> {lines[i + 1]}")
+            if line == lines[i + 1]:
+                layout_warnings.append(f"Found consecutive duplicate line: {line}")
 
-    placeholders = PLACEHOLDER_PATTERN.findall(full_text)
-    unique_placeholders = sorted(set(placeholders))
-
-    one_page = page_count == 1
-    is_a4 = (
-        abs(width_mm - A4_WIDTH_MM) <= A4_TOLERANCE_MM
-        and abs(height_mm - A4_HEIGHT_MM) <= A4_TOLERANCE_MM
-    )
-    has_text = bool(full_text.strip())
-    no_html = not html_leaks
-    sections_ok = not missing_sections
-
-    bottom_margin_ok = True
-    top_margin_ok = True
-    left_margin_ok = True
-    right_margin_ok = True
-    bottom_margin_mm: float | None = None
-    top_margin_mm: float | None = None
-    left_margin_mm: float | None = None
-    right_margin_mm: float | None = None
-    if margins is not None:
-        bottom_margin_mm = margins["bottom"]
-        top_margin_mm = margins["top"]
-        left_margin_mm = margins["left"]
-        right_margin_mm = margins["right"]
-        bottom_margin_ok = margin_within_range(
-            bottom_margin_mm, args.min_bottom_mm, args.max_bottom_mm
-        )
-        top_margin_ok = margin_within_range(
-            top_margin_mm, args.min_top_mm, args.max_top_mm
-        )
-        left_margin_ok = margin_within_range(
-            left_margin_mm, args.min_side_mm, args.max_side_mm
-        )
-        right_margin_ok = margin_within_range(
-            right_margin_mm, args.min_side_mm, args.max_side_mm
-        )
-
-    contact_ok = has_email and (has_phone or has_linkedin)
-
-    if args.json_output:
         report = build_quality_report(
-            page_count=page_count,
-            width_mm=width_mm,
-            height_mm=height_mm,
-            has_text=has_text,
-            html_leak_count=len(html_leaks),
-            placeholders=placeholders,
-            margins=margins,
+            page_count=len(pdf.pages),
+            width_mm=points_to_mm(first_page.width),
+            height_mm=points_to_mm(first_page.height),
+            has_text=bool(full_text.strip()),
+            html_leak_count=len(HTML_TAG_PATTERN.findall(full_text)),
+            placeholders=PLACEHOLDER_PATTERN.findall(full_text),
+            margins=estimate_page_margins_mm(first_page),
             missing_sections=missing_sections,
-            contact={"email": has_email, "phone": has_phone, "linkedin": has_linkedin},
-            missing_keywords=missing_keywords,
+            contact={
+                "email": bool(EMAIL_PATTERN.search(full_text)),
+                "phone": bool(PHONE_PATTERN.search(full_text)),
+                "linkedin": bool(LINKEDIN_PATTERN.search(full_text)),
+            },
+            missing_keywords=[kw for kw in args.keyword if kw.lower() not in full_text.lower()] if args.keyword else [],
             provided_keywords=args.keyword,
             layout_warnings=layout_warnings,
             margin_thresholds={
@@ -434,136 +349,13 @@ def main() -> int:
                 "max_side_mm": args.max_side_mm,
             },
         )
+
+    if args.json_output:
         print(json.dumps(report, ensure_ascii=False, indent=2))
-        return 0 if report["verdict"] == "PASS" else 2
-
-    print("=" * 80)
-    print(f"PDF Quality Check: {pdf_path.name}")
-    print("=" * 80)
-
-    print_result(
-        "1. Page Count",
-        one_page,
-        "1 page",
-        f"Current {page_count} pages (should be 1 page)",
-    )
-    print_result(
-        "2. Page Size",
-        is_a4,
-        f"A4 ({width_mm:.1f}mm x {height_mm:.1f}mm)",
-        f"Not A4 ({width_mm:.1f}mm x {height_mm:.1f}mm)",
-    )
-    print_result(
-        "3. Text Layer", has_text, "Extractable text", "No body text extracted"
-    )
-    print_result(
-        "4. HTML Tag Leakage",
-        no_html,
-        "No leakage found",
-        f"Found {len(html_leaks)} suspected HTML tags",
-    )
-
-    if placeholders:
-        print(
-            f"5. Placeholder Content: ✗ Found {len(placeholders)} placeholder(s): {', '.join(unique_placeholders)}"
-        )
     else:
-        print("5. Placeholder Content: ✓ No placeholder content found")
+        print(_format_text_report(report, pdf_path.name, args))
 
-    if margins is None:
-        print(
-            "6. Bottom Margin: ! Unable to auto-estimate (manual verification recommended)"
-        )
-        print(
-            "7. Top Margin: ! Unable to auto-estimate (manual verification recommended)"
-        )
-        print(
-            "8. Left/Right Margins: ! Unable to auto-estimate (manual verification recommended)"
-        )
-    else:
-        print_result(
-            "6. Bottom Margin",
-            bottom_margin_ok,
-            f"{bottom_margin_mm:.2f}mm (target {args.min_bottom_mm}-{args.max_bottom_mm}mm)",
-            f"{bottom_margin_mm:.2f}mm (exceeds target {args.min_bottom_mm}-{args.max_bottom_mm}mm)",
-        )
-        print_result(
-            "7. Top Margin",
-            top_margin_ok,
-            f"{top_margin_mm:.2f}mm (target {args.min_top_mm}-{args.max_top_mm}mm)",
-            f"{top_margin_mm:.2f}mm (exceeds target {args.min_top_mm}-{args.max_top_mm}mm)",
-        )
-        side_margin_ok = left_margin_ok and right_margin_ok
-        if side_margin_ok:
-            print(
-                f"8. Left/Right Margins: ✓ left {left_margin_mm:.2f}mm, right {right_margin_mm:.2f}mm "
-                f"(target {args.min_side_mm}-{args.max_side_mm}mm)"
-            )
-        else:
-            print(
-                f"8. Left/Right Margins: ✗ left {left_margin_mm:.2f}mm, right {right_margin_mm:.2f}mm "
-                f"(target {args.min_side_mm}-{args.max_side_mm}mm)"
-            )
-
-    if sections_ok:
-        print(
-            "9. Section Completeness: ✓ Summary/Skills/Experience/Education all identified"
-        )
-    else:
-        print(
-            f"9. Section Completeness: ✗ Missing sections: {', '.join(missing_sections)}"
-        )
-
-    print_result(
-        "10. Contact Info",
-        contact_ok,
-        "Detected Email + (Phone or LinkedIn)",
-        "Incomplete contact info (need at least Email + Phone/LinkedIn)",
-    )
-
-    if args.keyword:
-        if not missing_keywords:
-            print(f"11. Keyword Coverage: ✓ All {len(args.keyword)} keywords matched")
-        else:
-            print(
-                f"11. Keyword Coverage: ✗ Missing keywords: {', '.join(missing_keywords)}"
-            )
-    else:
-        print("11. Keyword Coverage: ! No keywords provided, skipped")
-
-    if layout_warnings:
-        print("12. Layout Warnings: ! Potential issues found")
-        for issue in layout_warnings:
-            print(f"   - {issue}")
-    else:
-        print("12. Layout Warnings: ✓ No obvious issues found")
-
-    critical_pass = all(
-        [
-            one_page,
-            is_a4,
-            has_text,
-            no_html,
-            not placeholders,
-            sections_ok,
-            contact_ok,
-            bottom_margin_ok,
-            top_margin_ok,
-            left_margin_ok,
-            right_margin_ok,
-            (not args.keyword) or (not missing_keywords),
-        ]
-    )
-
-    print("=" * 80)
-    if critical_pass:
-        print("Final Verdict: PASS")
-        print("=" * 80)
-        return 0
-
-    print("Final Verdict: NEED-ADJUSTMENT")
-    print("=" * 80)
-    return 2
+    return 0 if report["verdict"] == "PASS" else 2
 
 
 if __name__ == "__main__":

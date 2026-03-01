@@ -1,25 +1,38 @@
 # Prompt Recipes
 
-## 1) JD-driven optimization
+## 1) JD-Driven Full Auto (Primary Usage)
 
 ```text
-I will provide my resume and a JD.
-Please optimize to a single-page A4 ATS-friendly resume.
-Focus on evidence chains and quantifiable impact.
-Keep facts unchanged.
+Here is the JD:
+---
+{paste JD text here}
+---
+
+Generate an optimized single-page A4 ATS-friendly PDF resume targeting this position.
+Run the full pipeline automatically: diagnosis, optimization, compression, QA, and PDF generation.
+Output a summary report when done.
 ```
 
-## 2) General direction resume (no JD)
+## 2) Direction-Driven Full Auto (No JD)
 
 ```text
-Based on my resume, generate a general SDE resume.
-Focus on AI model engineering productionization + data platform + backend SDE capabilities.
-Keep facts unchanged and output JSON cache first.
+Generate a general resume targeting: {role} + {specialization areas}.
+Example: SDE + AI model engineering + Data Platform + backend systems.
+
+Run the full pipeline automatically and output a summary report when done.
 ```
 
-## 3) PDF generation with auto-fit layout only
+## 3) PDF Regeneration Only (Cache Ready)
 
 ```text
-Generate final PDF from cache/resume-working.json and enable auto-fit.
-Auto-fit must tune layout parameters only and must not rewrite resume content.
+Regenerate PDF from cache/resume-working.json with auto-fit.
+Skip analysis and content modification phases. Run QC and output results.
+```
+
+## 4) Manual Edit Then Generate (Resume Phase C+D)
+
+```text
+I have manually edited cache/resume-working.json.
+Run compression check, QA, humanizer, and then generate PDF.
+Output a summary report when done.
 ```

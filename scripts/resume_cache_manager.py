@@ -9,13 +9,23 @@ import json
 import re
 import sys
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
+
+from scripts.resume_shared import (
+    load_json_file,
+    parse_pipe_delimited_items,
+    validate_resume_content,
+    write_json_file,
+)
 
 CACHE_REL_PATH = Path("cache") / "resume-working.json"
 BASE_TEMPLATE_REL_PATH = Path("cache") / "base-resume.json"
-LEGACY_CACHE_REL_PATH = Path("cache") / "resume-working.md"
-LEGACY_BASE_TEMPLATE_REL_PATH = Path("cache") / "base-resume.md"
-
+JD_ANALYSIS_REL_PATH = Path("cache") / "jd-analysis.json"
+_LEGACY_PATHS = (
+    Path("cache") / "resume-working.md",
+    Path("cache") / "base-resume.md",
+)
 
 SECTION_ALIASES = {
     "summary": "summary",
@@ -45,25 +55,60 @@ def get_base_template_path(workspace: Path) -> Path:
     return workspace / BASE_TEMPLATE_REL_PATH
 
 
-def _get_legacy_cache_path(workspace: Path) -> Path:
-    return workspace / LEGACY_CACHE_REL_PATH
+def get_jd_analysis_path(workspace: Path) -> Path:
+    return workspace / JD_ANALYSIS_REL_PATH
 
 
-def _get_legacy_base_template_path(workspace: Path) -> Path:
-    return workspace / LEGACY_BASE_TEMPLATE_REL_PATH
+_JD_REQUIRED_KEYS = ("position", "keywords", "alignment")
+
+_JD_KEYWORDS_REQUIRED = ("P1", "P2", "P3")
+
+
+def validate_jd_analysis(payload: dict[str, Any]) -> None:
+    """Validate jd-analysis.json has required structure."""
+    missing = [k for k in _JD_REQUIRED_KEYS if k not in payload]
+    if missing:
+        raise ValueError(f"JD analysis missing required fields: {', '.join(missing)}")
+
+    kw = payload["keywords"]
+    if not isinstance(kw, dict):
+        raise ValueError("`keywords` must be an object.")
+    missing_tiers = [t for t in _JD_KEYWORDS_REQUIRED if t not in kw]
+    if missing_tiers:
+        raise ValueError(f"keywords missing required tiers: {', '.join(missing_tiers)}")
+    for tier in _JD_KEYWORDS_REQUIRED:
+        if not isinstance(kw[tier], list):
+            raise ValueError(f"keywords.{tier} must be an array.")
+
+    align = payload["alignment"]
+    if not isinstance(align, dict):
+        raise ValueError("`alignment` must be an object.")
+    for field in ("matched", "gaps"):
+        if field not in align:
+            raise ValueError(f"alignment missing required field: {field}")
+        if not isinstance(align[field], list):
+            raise ValueError(f"alignment.{field} must be an array.")
+
+
+def save_jd_analysis(workspace: Path, payload: dict[str, Any]) -> Path:
+    """Validate and write JD analysis JSON."""
+    validate_jd_analysis(payload)
+    return write_json_file(get_jd_analysis_path(workspace), payload)
+
+
+def read_jd_analysis(workspace: Path) -> dict[str, Any]:
+    """Read JD analysis JSON."""
+    return load_json_file(get_jd_analysis_path(workspace))
 
 
 def reset_cache_on_start(workspace: Path) -> bool:
     removed = False
-    for path in (get_cache_path(workspace), _get_legacy_cache_path(workspace)):
+    paths = [workspace / CACHE_REL_PATH, workspace / JD_ANALYSIS_REL_PATH] + [workspace / p for p in _LEGACY_PATHS]
+    for path in paths:
         if path.exists():
             path.unlink()
             removed = True
     return removed
-
-
-def cleanup_cache(workspace: Path) -> bool:
-    return reset_cache_on_start(workspace)
 
 
 def _normalize_heading(text: str) -> str:
@@ -72,27 +117,21 @@ def _normalize_heading(text: str) -> str:
 
 
 def _extract_sections(raw_text: str) -> dict[str, list[str]]:
-    lines = [line.strip() for line in raw_text.splitlines()]
     sections: dict[str, list[str]] = {
-        "summary": [],
-        "skills": [],
-        "experience": [],
-        "education": [],
-        "projects": [],
-        "certifications": [],
-        "awards": [],
+        key: [] for key in ("summary", "skills", "experience", "education",
+                            "projects", "certifications", "awards")
     }
 
     current_section = ""
-    for line in lines:
-        if not line:
+    for line in raw_text.splitlines():
+        stripped = line.strip()
+        if not stripped:
             continue
-        maybe_section = _normalize_heading(line)
+        maybe_section = _normalize_heading(stripped)
         if maybe_section:
             current_section = maybe_section
-            continue
-        if current_section:
-            sections[current_section].append(line)
+        elif current_section:
+            sections[current_section].append(stripped)
 
     return sections
 
@@ -104,7 +143,6 @@ def _extract_header(raw_text: str) -> tuple[str, str]:
 
     name = non_empty[0]
     contact = ""
-
     for line in non_empty[1:4]:
         if "@" in line or "|" in line or "linkedin" in line.lower():
             contact = line
@@ -128,10 +166,7 @@ def _parse_skills(section_lines: list[str]) -> list[dict[str, str]]:
         else:
             skills.append({"category": "Core", "items": cleaned})
 
-    if not skills:
-        skills.append({"category": "Core", "items": "[To be filled: Skills]"})
-
-    return skills
+    return skills or [{"category": "Core", "items": "[To be filled: Skills]"}]
 
 
 def _split_tab_or_multi_space(value: str) -> list[str]:
@@ -145,18 +180,20 @@ def _split_tab_or_multi_space(value: str) -> list[str]:
     return [cleaned]
 
 
-def _split_title_location(value: str) -> tuple[str, str]:
+def _split_two_fields(value: str, defaults: tuple[str, str]) -> tuple[str, str]:
     parts = _split_tab_or_multi_space(value)
     if len(parts) >= 2:
         return parts[0], parts[1]
-    return value.strip() or "[Title]", "[Location]"
+    return value.strip() or defaults[0], defaults[1]
 
 
-def _split_degree_dates(value: str) -> tuple[str, str]:
-    parts = _split_tab_or_multi_space(value)
-    if len(parts) >= 2:
-        return parts[0], parts[1]
-    return value.strip() or "[Degree]", "[Dates]"
+def _make_entry(**fields: str) -> dict[str, Any]:
+    """Create a placeholder entry dict with given field names and values."""
+    return dict(fields)
+
+
+_EXP_DEFAULTS = {"company": "[Company]", "title": "[Title]", "location": "[Location]", "dates": "[Dates]"}
+_EXP_PLACEHOLDER_BULLET = "[To be filled: Experience details]"
 
 
 def _parse_experience(section_lines: list[str]) -> list[dict[str, Any]]:
@@ -168,7 +205,7 @@ def _parse_experience(section_lines: list[str]) -> list[dict[str, Any]]:
         if not stripped:
             continue
 
-        is_bullet = stripped.startswith("-") or stripped.startswith("•")
+        is_bullet = stripped[0] in "-•"
         cleaned = stripped.lstrip("-• ").strip()
         if not cleaned:
             continue
@@ -176,61 +213,38 @@ def _parse_experience(section_lines: list[str]) -> list[dict[str, Any]]:
         if not is_bullet and "|" in cleaned:
             if current:
                 if not current["bullets"]:
-                    current["bullets"].append("[To be filled: Experience details]")
+                    current["bullets"].append(_EXP_PLACEHOLDER_BULLET)
                 experience.append(current)
 
             parts = [item.strip() for item in cleaned.split("|")]
-            title = "[Title]"
-            location = "[Location]"
-            dates = "[Dates]"
+            title, location, dates = "[Title]", "[Location]", "[Dates]"
 
             if len(parts) > 3:
-                title = parts[1]
-                location = parts[2]
-                dates = parts[3]
+                title, location, dates = parts[1], parts[2], parts[3]
             elif len(parts) == 3:
-                title, location = _split_title_location(parts[1])
+                title, location = _split_two_fields(parts[1], ("[Title]", "[Location]"))
                 dates = parts[2]
             elif len(parts) == 2:
                 title = parts[1]
 
             current = {
                 "company": parts[0] if parts else "[Company]",
-                "title": title,
-                "location": location,
-                "dates": dates,
+                "title": title, "location": location, "dates": dates,
                 "bullets": [],
             }
             continue
 
         if current is None:
-            current = {
-                "company": "[Company]",
-                "title": "[Title]",
-                "location": "[Location]",
-                "dates": "[Dates]",
-                "bullets": [],
-            }
+            current = {**_EXP_DEFAULTS, "bullets": []}
 
         current["bullets"].append(cleaned)
 
     if current:
         if not current["bullets"]:
-            current["bullets"].append("[To be filled: Experience details]")
+            current["bullets"].append(_EXP_PLACEHOLDER_BULLET)
         experience.append(current)
 
-    if not experience:
-        experience.append(
-            {
-                "company": "[Company]",
-                "title": "[Title]",
-                "location": "[Location]",
-                "dates": "[Dates]",
-                "bullets": ["[To be filled: Experience details]"],
-            }
-        )
-
-    return experience
+    return experience or [{**_EXP_DEFAULTS, "bullets": [_EXP_PLACEHOLDER_BULLET]}]
 
 
 def _parse_education(section_lines: list[str]) -> list[dict[str, str]]:
@@ -241,28 +255,26 @@ def _parse_education(section_lines: list[str]) -> list[dict[str, str]]:
             continue
         parts = [item.strip() for item in cleaned.split("|")]
 
-        degree = "[Degree]"
-        dates = "[Dates]"
-        if len(parts) > 2:
-            degree = parts[1]
-            dates = parts[2]
+        if len(parts) > 3:
+            degree, dates, location = parts[1], parts[2], parts[3]
+        elif len(parts) > 2:
+            degree, dates = parts[1], parts[2]
+            location = ""
         elif len(parts) == 2:
-            degree, dates = _split_degree_dates(parts[1])
+            degree, dates = _split_two_fields(parts[1], ("[Degree]", "[Dates]"))
+            location = ""
+        else:
+            degree, dates, location = "[Degree]", "[Dates]", ""
 
-        education.append(
-            {
-                "school": parts[0] if parts else "[School]",
-                "degree": degree,
-                "dates": dates,
-            }
-        )
+        entry: dict[str, str] = {
+            "school": parts[0] if parts else "[School]",
+            "degree": degree, "dates": dates,
+        }
+        if location:
+            entry["location"] = location
+        education.append(entry)
 
-    if not education:
-        education.append(
-            {"school": "[School]", "degree": "[Degree]", "dates": "[Dates]"}
-        )
-
-    return education
+    return education or [{"school": "[School]", "degree": "[Degree]", "dates": "[Dates]"}]
 
 
 def _parse_projects(section_lines: list[str]) -> list[dict[str, Any]]:
@@ -274,7 +286,7 @@ def _parse_projects(section_lines: list[str]) -> list[dict[str, Any]]:
         if not stripped:
             continue
 
-        is_bullet = stripped.startswith("-") or stripped.startswith("•")
+        is_bullet = stripped[0] in "-•"
         cleaned = stripped.lstrip("-• ").strip()
         if not cleaned:
             continue
@@ -307,49 +319,25 @@ def _parse_projects(section_lines: list[str]) -> list[dict[str, Any]]:
 
 
 def _parse_certifications(section_lines: list[str]) -> list[dict[str, str]]:
-    certifications: list[dict[str, str]] = []
-    for line in section_lines:
-        cleaned = line.lstrip("-• ").strip()
-        if not cleaned:
-            continue
-        parts = [item.strip() for item in cleaned.split("|")]
-        certifications.append(
-            {
-                "name": parts[0] if parts else "[Certification]",
-                "issuer": parts[1] if len(parts) > 1 else "",
-                "dates": parts[2] if len(parts) > 2 else "",
-            }
-        )
-    return certifications
+    return parse_pipe_delimited_items(
+        section_lines, ("name", "issuer", "dates"), "[Certification]"
+    )
 
 
 def _parse_awards(section_lines: list[str]) -> list[dict[str, str]]:
-    awards: list[dict[str, str]] = []
-    for line in section_lines:
-        cleaned = line.lstrip("-• ").strip()
-        if not cleaned:
-            continue
-        parts = [item.strip() for item in cleaned.split("|")]
-        awards.append(
-            {
-                "name": parts[0] if parts else "[Award]",
-                "organization": parts[1] if len(parts) > 1 else "",
-                "dates": parts[2] if len(parts) > 2 else "",
-            }
-        )
-    return awards
+    return parse_pipe_delimited_items(
+        section_lines, ("name", "organization", "dates"), "[Award]"
+    )
 
 
 def normalize_resume_text_to_content(raw_text: str) -> dict[str, Any]:
     name, contact = _extract_header(raw_text)
     sections = _extract_sections(raw_text)
 
-    summary = " ".join(sections["summary"]).strip() or "[To be filled: Summary]"
-
     return {
         "name": name,
         "contact": contact,
-        "summary": summary,
+        "summary": " ".join(sections["summary"]).strip() or "[To be filled: Summary]",
         "skills": _parse_skills(sections["skills"]),
         "experience": _parse_experience(sections["experience"]),
         "education": _parse_education(sections["education"]),
@@ -359,78 +347,29 @@ def normalize_resume_text_to_content(raw_text: str) -> dict[str, Any]:
     }
 
 
-def _validate_json_content(payload: dict[str, Any]) -> None:
-    required = ("name", "contact", "summary", "skills", "experience", "education")
-    missing = [key for key in required if key not in payload]
-    if missing:
-        raise ValueError(f"Input JSON missing required fields: {', '.join(missing)}")
-
-    if not isinstance(payload["skills"], list):
-        raise ValueError("`skills` must be an array.")
-    if not isinstance(payload["experience"], list):
-        raise ValueError("`experience` must be an array.")
-    if not isinstance(payload["education"], list):
-        raise ValueError("`education` must be an array.")
-
-
-def _write_json(path: Path, payload: dict[str, Any]) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-    )
-    return path
-
-
 def init_cache_from_text(workspace: Path, raw_text: str) -> Path:
-    cache_path = get_cache_path(workspace)
-    payload = normalize_resume_text_to_content(raw_text)
-    return _write_json(cache_path, payload)
+    return write_json_file(get_cache_path(workspace), normalize_resume_text_to_content(raw_text))
 
 
 def update_cache_from_json(workspace: Path, payload: dict[str, Any]) -> Path:
-    _validate_json_content(payload)
-    cache_path = get_cache_path(workspace)
-    return _write_json(cache_path, payload)
+    validate_resume_content(payload)
+    return write_json_file(get_cache_path(workspace), payload)
 
 
 def read_cache_json(workspace: Path) -> dict[str, Any]:
-    cache_path = get_cache_path(workspace)
-    if not cache_path.exists():
-        raise FileNotFoundError(f"Cache does not exist: {cache_path}")
-
-    payload = json.loads(cache_path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError(f"Cache JSON must be an object: {cache_path}")
-    return payload
+    return load_json_file(get_cache_path(workspace))
 
 
 def init_base_template_from_text(workspace: Path, raw_text: str) -> Path:
-    template_path = get_base_template_path(workspace)
-    payload = normalize_resume_text_to_content(raw_text)
-    return _write_json(template_path, payload)
+    return write_json_file(get_base_template_path(workspace), normalize_resume_text_to_content(raw_text))
 
 
 def init_working_from_template(workspace: Path) -> Path:
-    template_path = get_base_template_path(workspace)
-    if not template_path.exists():
-        raise FileNotFoundError(f"Template does not exist: {template_path}")
-
-    payload = json.loads(template_path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError(f"Template JSON must be an object: {template_path}")
-
-    return _write_json(get_cache_path(workspace), payload)
+    return write_json_file(get_cache_path(workspace), load_json_file(get_base_template_path(workspace)))
 
 
 def read_base_template_json(workspace: Path) -> dict[str, Any]:
-    template_path = get_base_template_path(workspace)
-    if not template_path.exists():
-        raise FileNotFoundError(f"Template does not exist: {template_path}")
-
-    payload = json.loads(template_path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError(f"Template JSON must be an object: {template_path}")
-    return payload
+    return load_json_file(get_base_template_path(workspace))
 
 
 def has_base_template(workspace: Path) -> bool:
@@ -442,101 +381,59 @@ def _normalize_text(text: str) -> str:
 
 
 def _normalize_skill_set(skills: list[dict[str, Any]]) -> set[str]:
-    normalized: set[str] = set()
-    for skill in skills:
-        category = str(skill.get("category", "")).strip()
-        items = str(skill.get("items", "")).strip()
-        if category or items:
-            normalized.add(f"{category}: {items}".strip())
-    return normalized
+    return {
+        f"{str(s.get('category', '')).strip()}: {str(s.get('items', '')).strip()}".strip()
+        for s in skills
+        if str(s.get("category", "")).strip() or str(s.get("items", "")).strip()
+    }
 
 
-def _normalize_experience_text(items: list[dict[str, Any]]) -> str:
+def _normalize_items_text(items: list[dict[str, Any]], fields: list[str]) -> str:
     lines: list[str] = []
     for item in items:
-        lines.append(
-            " | ".join(
-                [
-                    str(item.get("company", "")).strip(),
-                    str(item.get("title", "")).strip(),
-                    str(item.get("location", "")).strip(),
-                    str(item.get("dates", "")).strip(),
-                ]
-            )
-        )
+        lines.append(" | ".join(str(item.get(f, "")).strip() for f in fields))
         for bullet in item.get("bullets", []):
             lines.append(str(bullet).strip())
     return _normalize_text("\n".join(lines))
 
 
-def _normalize_education_text(items: list[dict[str, Any]]) -> str:
-    lines = [
-        " | ".join(
-            [
-                str(item.get("school", "")).strip(),
-                str(item.get("degree", "")).strip(),
-                str(item.get("dates", "")).strip(),
-            ]
-        )
-        for item in items
-    ]
-    return _normalize_text("\n".join(lines))
-
-
-def _count_bullets_in_experience(items: list[dict[str, Any]]) -> int:
-    return sum(len(item.get("bullets", [])) for item in items)
-
-
 def diff_cache_against_template(workspace: Path) -> dict[str, Any]:
-    template_path = get_base_template_path(workspace)
-    if not template_path.exists():
-        raise FileNotFoundError(f"Template does not exist: {template_path}")
+    template = read_base_template_json(workspace)
+    working = read_cache_json(workspace)
 
-    cache_path = get_cache_path(workspace)
-    if not cache_path.exists():
-        raise FileNotFoundError(f"Cache does not exist: {cache_path}")
+    def status(a: str, b: str) -> str:
+        return "unchanged" if a == b else "modified"
 
-    template_payload = read_base_template_json(workspace)
-    working_payload = read_cache_json(workspace)
-
-    summary_template = str(template_payload.get("summary", ""))
-    summary_working = str(working_payload.get("summary", ""))
-    skills_template = template_payload.get("skills", [])
-    skills_working = working_payload.get("skills", [])
-    experience_template = template_payload.get("experience", [])
-    experience_working = working_payload.get("experience", [])
-    education_template = template_payload.get("education", [])
-    education_working = working_payload.get("education", [])
-
-    template_skills = _normalize_skill_set(skills_template)
-    working_skills = _normalize_skill_set(skills_working)
+    tmpl_skills = _normalize_skill_set(template.get("skills", []))
+    work_skills = _normalize_skill_set(working.get("skills", []))
 
     return {
         "summary": {
-            "status": "unchanged"
-            if _normalize_text(summary_template) == _normalize_text(summary_working)
-            else "modified",
-            "template": _normalize_text(summary_template),
-            "working": _normalize_text(summary_working),
+            "status": status(
+                _normalize_text(str(template.get("summary", ""))),
+                _normalize_text(str(working.get("summary", ""))),
+            ),
+            "template": _normalize_text(str(template.get("summary", ""))),
+            "working": _normalize_text(str(working.get("summary", ""))),
         },
         "skills": {
-            "status": "unchanged" if template_skills == working_skills else "modified",
-            "added": sorted(working_skills - template_skills),
-            "removed": sorted(template_skills - working_skills),
+            "status": "unchanged" if tmpl_skills == work_skills else "modified",
+            "added": sorted(work_skills - tmpl_skills),
+            "removed": sorted(tmpl_skills - work_skills),
         },
         "experience": {
-            "status": "unchanged"
-            if _normalize_experience_text(experience_template)
-            == _normalize_experience_text(experience_working)
-            else "modified",
-            "bullet_count_template": _count_bullets_in_experience(experience_template),
-            "bullet_count_working": _count_bullets_in_experience(experience_working),
+            "status": status(
+                _normalize_items_text(template.get("experience", []), ["company", "title", "location", "dates"]),
+                _normalize_items_text(working.get("experience", []), ["company", "title", "location", "dates"]),
+            ),
+            "bullet_count_template": sum(len(e.get("bullets", [])) for e in template.get("experience", [])),
+            "bullet_count_working": sum(len(e.get("bullets", [])) for e in working.get("experience", [])),
         },
         "education": {
-            "status": "unchanged"
-            if _normalize_education_text(education_template)
-            == _normalize_education_text(education_working)
-            else "modified"
+            "status": status(
+                _normalize_items_text(template.get("education", []), ["school", "degree", "dates", "location"]),
+                _normalize_items_text(working.get("education", []), ["school", "degree", "dates", "location"]),
+            ),
         },
     }
 
@@ -548,16 +445,9 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "action",
         choices=[
-            "reset",
-            "init",
-            "update",
-            "show",
-            "cleanup",
-            "template-init",
-            "template-use",
-            "template-show",
-            "template-check",
-            "diff",
+            "reset", "init", "update", "show", "cleanup",
+            "template-init", "template-use", "template-show", "template-check", "diff",
+            "jd-save", "jd-show",
         ],
         help="Action to execute",
     )
@@ -569,50 +459,39 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _load_json_file(path: Path) -> dict[str, Any]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError(f"Input JSON must be an object: {path}")
-    return payload
+def _run_json_action(action: Callable[..., Any], *args: Any) -> int:
+    try:
+        print(json.dumps(action(*args), ensure_ascii=False, indent=2))
+        return 0
+    except (FileNotFoundError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
 
 
 def main() -> int:
     args = _parse_args()
     workspace = Path(args.workspace).expanduser().resolve()
 
-    if args.action in {"init", "update", "template-init"} and not args.input:
-        print(
-            "Error: init/update/template-init requires --input parameter",
-            file=sys.stderr,
-        )
+    if args.action in {"init", "update", "template-init", "jd-save"} and not args.input:
+        print("Error: init/update/template-init/jd-save requires --input parameter", file=sys.stderr)
         return 1
 
-    if args.action == "reset":
+    if args.action in {"reset", "cleanup"}:
         removed = reset_cache_on_start(workspace)
-        print("Old cache removed" if removed else "No old cache found")
-        return 0
-
-    if args.action == "cleanup":
-        removed = cleanup_cache(workspace)
-        print("Cache cleaned" if removed else "No cache to clean")
+        if args.action == "cleanup":
+            print("Cache cleaned" if removed else "No cache to clean")
+        else:
+            print("Old cache removed" if removed else "No old cache found")
         return 0
 
     if args.action == "show":
-        try:
-            print(json.dumps(read_cache_json(workspace), ensure_ascii=False, indent=2))
-            return 0
-        except (FileNotFoundError, ValueError) as exc:
-            print(str(exc), file=sys.stderr)
-            return 1
+        return _run_json_action(read_cache_json, workspace)
 
     if args.action == "diff":
-        try:
-            payload = diff_cache_against_template(workspace)
-            print(json.dumps(payload, ensure_ascii=False, indent=2))
-            return 0
-        except (FileNotFoundError, ValueError) as exc:
-            print(str(exc), file=sys.stderr)
-            return 1
+        return _run_json_action(diff_cache_against_template, workspace)
+
+    if args.action == "jd-show":
+        return _run_json_action(read_jd_analysis, workspace)
 
     if args.action == "template-check":
         exists = has_base_template(workspace)
@@ -623,16 +502,7 @@ def main() -> int:
         return 1
 
     if args.action == "template-show":
-        try:
-            print(
-                json.dumps(
-                    read_base_template_json(workspace), ensure_ascii=False, indent=2
-                )
-            )
-            return 0
-        except (FileNotFoundError, ValueError) as exc:
-            print(str(exc), file=sys.stderr)
-            return 1
+        return _run_json_action(read_base_template_json, workspace)
 
     if args.action == "template-use":
         try:
@@ -643,27 +513,25 @@ def main() -> int:
             print(str(exc), file=sys.stderr)
             return 1
 
+    # Actions requiring --input file
     input_path = Path(args.input).expanduser().resolve()
     if not input_path.exists():
         print(f"Error: Input file does not exist: {input_path}", file=sys.stderr)
         return 1
 
     try:
-        if args.action == "template-init":
-            raw_text = input_path.read_text(encoding="utf-8")
-            path = init_base_template_from_text(workspace, raw_text)
+        if args.action == "jd-save":
+            path = save_jd_analysis(workspace, load_json_file(input_path))
+            print(f"JD analysis saved: {path}")
+        elif args.action == "template-init":
+            path = init_base_template_from_text(workspace, input_path.read_text(encoding="utf-8"))
             print(f"Template initialized: {path}")
-            return 0
-
-        if args.action == "init":
-            raw_text = input_path.read_text(encoding="utf-8")
-            path = init_cache_from_text(workspace, raw_text)
+        elif args.action == "init":
+            path = init_cache_from_text(workspace, input_path.read_text(encoding="utf-8"))
             print(f"Cache initialized: {path}")
-            return 0
-
-        payload = _load_json_file(input_path)
-        path = update_cache_from_json(workspace, payload)
-        print(f"Cache updated: {path}")
+        else:  # update
+            path = update_cache_from_json(workspace, load_json_file(input_path))
+            print(f"Cache updated: {path}")
         return 0
     except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)

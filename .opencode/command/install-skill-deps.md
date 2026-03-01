@@ -5,7 +5,7 @@ Please execute the automatic installation process for resume-tailor dependency s
 ## Required Steps
 
 1. Read and follow the `For LLM Agents` section in `docs/guide/installation.md`.
-2. Read `install/agent-install.yaml`, and fully execute its `sources`, `install_plan`, and `post_check`.
+2. Read `install/agent-install.yaml`, use the **`opencode` platform profile**, and fully execute its `sources`, `install_plan`, and `post_check`.
 3. Use `pull-or-clone` strategy for upstream repositories to avoid installation failures when directories already exist.
 4. Only install the following skills: `pdf`, `docx`, `humanizer`.
 5. Explicitly do not install `humanizer-zh`.

@@ -3,7 +3,8 @@ import unittest
 from pathlib import Path
 
 from scripts.resume_cache_manager import init_cache_from_text, read_cache_json
-from templates.modern_resume_template import generate_resume, validate_content
+from scripts.resume_shared import validate_resume_content
+from templates.modern_resume_template import generate_resume
 
 
 CONTENT_WITH_PROJECTS = {
@@ -47,7 +48,7 @@ CONTENT_WITH_PROJECTS = {
 
 class ExtendedSectionsJsonTest(unittest.TestCase):
     def test_validate_content_accepts_extended_fields(self):
-        validate_content(CONTENT_WITH_PROJECTS)
+        validate_resume_content(CONTENT_WITH_PROJECTS)
 
     def test_generate_resume_renders_extended_sections(self):
         with tempfile.TemporaryDirectory() as tmpdir:

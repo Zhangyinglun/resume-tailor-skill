@@ -3,7 +3,6 @@ import unittest
 from pathlib import Path
 
 from scripts.resume_cache_manager import (
-    cleanup_cache,
     has_base_template,
     init_base_template_from_text,
     init_cache_from_text,
@@ -99,7 +98,7 @@ class ResumeCacheFlowTest(unittest.TestCase):
             self.assertIn("Staff backend engineer", updated["summary"])
             self.assertTrue(updated["experience"])
 
-            self.assertTrue(cleanup_cache(workspace))
+            self.assertTrue(reset_cache_on_start(workspace))
             self.assertFalse(created_path.exists())
 
     def test_reset_cache_on_start_removes_previous_cache(self):
@@ -134,7 +133,7 @@ class ResumeCacheFlowTest(unittest.TestCase):
             working_content = read_cache_json(workspace)
             self.assertEqual(template_content, working_content)
 
-            cleanup_cache(workspace)
+            reset_cache_on_start(workspace)
             self.assertFalse(working_path.exists())
             self.assertTrue(template_path.exists())
 

@@ -1,95 +1,103 @@
 # Execution Checklist
 
-## Phase 0: Session Startup
-- Execute `scripts/resume_cache_manager.py reset`.
-- Record result: old cache deleted or no old cache found.
+## Phase A: Initialize
+1. Execute `scripts/resume_cache_manager.py reset`.
+   - Record result: old cache deleted or no old cache found.
+2. Check template resume:
+   - Run `template-check`.
+   - If exists: run `template-use` to load template into working cache.
+   - If not exists: request user to upload resume, execute `template-init`, then `template-use`.
+   - Error handling: if `template-use` fails (e.g., corrupted base-resume.json), log the error and re-run `template-init` from the raw resume.
 
-## Phase 1: Input Collection and Diagnosis
-1. Check template resume:
-   - Run `template-check`
-   - If not exists, request user to upload resume and execute `template-init`
-   - Run `template-show` to read full template
-2. Collect JD (text/URL/file, optional).
-3. Output P1/P2/P3 tiered diagnosis:
+## Phase B: Analyze & Draft
+
+### Step B1: JD Diagnosis
+1. Collect JD (text/URL/file) or target direction from user input.
+2. Produce P1/P2/P3 tiered diagnosis:
    - If JD exists: diagnose against JD requirements.
-   - If JD is absent: diagnose against user-provided direction (for example, SDE + AI model engineering + Data Platform).
+   - If JD is absent: diagnose against user-provided direction (e.g., SDE + AI model engineering + Data Platform).
    - P1: Critical requirements
    - P2: Important qualifications
    - P3: Nice-to-haves
-4. Output gap report: matched, transferable, gaps (provide brief improvement suggestions for each gap).
-5. Let user confirm diagnosis conclusion before proceeding to initial version generation.
+3. Produce gap report: matched, transferable, gaps (with improvement strategy for each gap).
+4. Persist JD analysis results to `cache/jd-analysis.json` via `scripts/resume_cache_manager.py jd-save --workspace . --input <jd-analysis-file>`. The JSON must contain at minimum:
+   - `position`: target position title
+   - `keywords`: object with `P1`, `P2`, `P3` arrays
+   - `alignment`: object with `matched` and `gaps` arrays
+   - Optional: `company`, `source`, `optimization_actions` array
 
-## Phase 2: Iterative Negotiation
-- Only suggest 1 item per round, wait for confirmation before the next.
-- Suggestion priority:
-  1. Fill missing core keywords
-  2. Strengthen descriptions with JD original words
-  3. Adjust content order (relevant content first)
-  4. Remove low-relevance content
-- After each round of confirmation, execute `scripts/resume_cache_manager.py update`.
+### Step B2: Apply All Modifications
+1. Apply optimization decisions using standard action codes (see `references/optimization-actions.md`):
+   - `LEAD_WITH`: Reorder sections to front-load P1-matching content
+   - `EMPHASIZE`: Rewrite weak bullets using four-element formula
+   - `QUANTIFY`: Add measurable metrics to vague descriptions
+   - `REWORD`: Replace synonyms with exact JD terminology (P1 first, then P2)
+   - `MERGE`: Combine overlapping bullets into stronger single entries
+   - `DOWNPLAY`: Remove or reduce low-relevance content
+2. Document each action with target path, action code, and reason.
+3. Execute `scripts/resume_cache_manager.py update` to persist all changes.
 
-## Phase 3: Pre-Review Volume Gate
+## Phase C: Compress & Quality
 
-Before outputting "Resume Full Preview", must check `cache/resume-working.json`.
+### Step C1: Volume Gate
 
-### Volume Thresholds (triggers consolidation if any exceeded)
+Check `cache/resume-working.json` against volume thresholds.
+
+#### Volume Thresholds (triggers consolidation if any exceeded)
 - Total word count: recommended 520-760
 - Non-empty lines: recommended 32-52
 - Total experience bullets: recommended 8-14
 - Single bullet: no more than 2 lines (~28 English words)
 
-### Consolidation Order (must follow sequence)
+#### Consolidation Order (must follow sequence)
 1. Delete low-relevance or duplicate information
 2. Merge similar bullets
 3. Compress sentence structure (keep four elements: action + keyword + method/tool + result)
 
-### Consolidation Constraints
+#### Consolidation Constraints
 - Must not fabricate facts.
 - Must not delete key qualifications (contact info, core skills, highest relevant experience).
 - Must retain JD core keyword matches and quantified results.
 
-### Review Draft Attached Information
-- Original volume
-- Current volume
-- Deletion/merge summary
-- Retained keywords list
+After consolidation, execute `scripts/resume_cache_manager.py update`.
 
-## Phase 4: QA and De-AI
+### Step C2: QA & De-AI
 
-Before layout, output QA report covering these 4 categories:
+Run QA checks covering these 4 categories:
 1. Structural logic: Summary focus, evidence chain, timeline consistency
 2. Natural expression: call `humanizer`
 3. Quantified results: check four-element completeness for each experience
 4. ATS details: original keyword match, tense consistency, complete contact info
 
-Note: When outputting "Resume Full Preview", read directly from `cache/resume-working.json`, do not reconstruct from memory.
+After any QA-driven edits, execute `scripts/resume_cache_manager.py update`.
 
-## Phase 5: PDF Generation and Quality Check
-1. Generate only after user explicitly approves full text.
-2. Call `pdf` skill first, then generate PDF.
-3. Priority command:
-   - Default: `scripts/generate_final_resume.py --input-json cache/resume-working.json --output-file ... --output-dir resume_output`
-   - Auto-fit: `scripts/generate_final_resume.py --input-json cache/resume-working.json --output-file ... --output-dir resume_output --auto-fit`
-4. Quality check must cover:
+Note: Always read from `cache/resume-working.json` directly, do not reconstruct from memory.
+
+## Phase D: Generate & Deliver
+
+### Step D1: PDF Generation and Quality Check
+1. Call `pdf` skill, then generate PDF.
+2. PDF retry strategy (up to 3 attempts if QC fails):
+   - Attempt 1: `scripts/generate_final_resume.py --input-json cache/resume-working.json --output-file {name}.pdf --output-dir resume_output --auto-fit`
+   - Attempt 2: `scripts/generate_final_resume.py --input-json cache/resume-working.json --output-file {name}.pdf --output-dir resume_output --auto-fit --item-spacing-scale 0.85 --font-size-scale 0.95`
+   - Attempt 3: `scripts/generate_final_resume.py --input-json cache/resume-working.json --output-file {name}.pdf --output-dir resume_output --auto-fit --compact`
+3. Quality check must cover:
    - A4
    - 1 page
    - Module completeness
    - Text layer extractable
    - No HTML tag leakage
    - Bottom margin 3-8mm
-5. If not passing, fine-tune and regenerate until passing.
-   - In auto-fit mode, tuning is layout-only (font/spacing/margins); do not rewrite content automatically.
-6. If content is near page limit, use `--compact` or fine-tune scale parameters:
-   - `--compact`: preset reduction of font size, line height, and spacing
-   - `--font-size-scale 0.95`: slight font reduction
-   - `--item-spacing-scale 0.85`: reduce bullet spacing
-   - Priority: adjust spacing first, then font size, to maintain readability
+4. If all 3 attempts fail: output the best PDF and note the failed checks in the summary report.
 
-## Phase 6: Wrap-up
+### Step D2: Summary Report
+Output the summary report as defined in SKILL.md § Summary Report Format.
+Read `cache/jd-analysis.json` for Job Analysis data — do not reconstruct from memory.
+
+### Step D3: Wrap-up
 1. Update `cache/user-profile.md` (long-term preference and direction log).
 2. Retain `cache/resume-working.json` as baseline for future iterations.
-3. Provide extended suggestions only when user requests (interview points, cover letter opening, gap addressing).
-4. Remind user to review contact info and sensitive information.
+3. Remind user to review contact info and sensitive information (in the report, not as a blocking question).
 
 ## Special Scenario Strategies
 

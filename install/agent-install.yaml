@@ -1,21 +1,27 @@
-version: 2
+version: 3
 name: resume-tailor-skill-deps
-target_skills_dir: ~/.config/opencode/skills
+
+platform_profiles:
+  opencode:
+    skills_dir: ~/.config/opencode/skills
+  claude-code:
+    skills_dir: ./_deps/skills
 
 requirements:
-  - check: py -3 --version
+  # On Windows (non-WSL), replace python3 with py -3
+  - check: python3 --version
   - check: git --version
 
 sources:
   - id: anthropics-skills
     repo: https://github.com/anthropics/skills
-    cache_dir: ~/.config/opencode/skills/_upstream_anthropic_skills
+    cache_dir: <skills_dir>/_upstream_anthropic_skills
     skills:
       - pdf
       - docx
   - id: blader-humanizer
     repo: https://github.com/blader/humanizer
-    cache_dir: ~/.config/opencode/skills/_upstream_humanizer
+    cache_dir: <skills_dir>/_upstream_humanizer
     skills:
       - humanizer
 
@@ -25,7 +31,7 @@ sync_policy:
   clone_command: git clone <repo> <cache_dir>
 
 install_plan:
-  - run: py -3 -m pip install -r requirements.txt
+  - run: python3 -m pip install -r requirements.txt
   - sync_repo:
       source_id: anthropics-skills
   - sync_repo:
@@ -33,30 +39,30 @@ install_plan:
   - install_skill:
       source_id: anthropics-skills
       skill: pdf
-      from: ~/.config/opencode/skills/_upstream_anthropic_skills/pdf
-      to: ~/.config/opencode/skills/pdf
+      from: <skills_dir>/_upstream_anthropic_skills/skills/pdf
+      to: <skills_dir>/pdf
       mode: copy
       overwrite: true
   - install_skill:
       source_id: anthropics-skills
       skill: docx
-      from: ~/.config/opencode/skills/_upstream_anthropic_skills/docx
-      to: ~/.config/opencode/skills/docx
+      from: <skills_dir>/_upstream_anthropic_skills/skills/docx
+      to: <skills_dir>/docx
       mode: copy
       overwrite: true
   - install_skill:
       source_id: blader-humanizer
       skill: humanizer
-      from: ~/.config/opencode/skills/_upstream_humanizer/humanizer
-      to: ~/.config/opencode/skills/humanizer
+      from: <skills_dir>/_upstream_humanizer
+      to: <skills_dir>/humanizer
       mode: copy
       overwrite: true
 
 post_check:
-  - ensure_exists: ~/.config/opencode/skills/pdf/SKILL.md
-  - ensure_exists: ~/.config/opencode/skills/docx/SKILL.md
-  - ensure_exists: ~/.config/opencode/skills/humanizer/SKILL.md
-  - ensure_absent: ~/.config/opencode/skills/humanizer-zh/SKILL.md
+  - ensure_exists: <skills_dir>/pdf/SKILL.md
+  - ensure_exists: <skills_dir>/docx/SKILL.md
+  - ensure_exists: <skills_dir>/humanizer/SKILL.md
+  - ensure_absent: <skills_dir>/humanizer-zh/SKILL.md
 
 report:
   - print: installed skills => pdf, docx, humanizer

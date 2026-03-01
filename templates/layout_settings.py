@@ -6,10 +6,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-_COMPACT_FONT_SIZE_SCALE = 0.92
-_COMPACT_LINE_HEIGHT_SCALE = 0.90
-_COMPACT_SECTION_SPACING_SCALE = 0.80
-_COMPACT_ITEM_SPACING_SCALE = 0.75
+_COMPACT_DEFAULTS = {
+    "font_size": 0.92,
+    "line_height": 0.88,
+    "section_spacing": 0.88,
+    "item_spacing": 0.85,
+}
 
 _MIN_SCALE = 0.7
 _MAX_SCALE = 1.3
@@ -34,37 +36,28 @@ class LayoutSettings:
     margin_side_inch: float = 0.6
     compact_mode: bool = False
 
+    def _effective(self, field: str) -> float:
+        raw = getattr(self, f"{field}_scale")
+        value = raw if raw is not None else 1.0
+        if self.compact_mode and value == 1.0:
+            return _COMPACT_DEFAULTS[field]
+        return _clamp(value)
+
     @property
     def effective_font_size_scale(self) -> float:
-        if self.compact_mode and self.font_size_scale == 1.0:
-            return _COMPACT_FONT_SIZE_SCALE
-        return _clamp(self.font_size_scale if self.font_size_scale is not None else 1.0)
+        return self._effective("font_size")
 
     @property
     def effective_line_height_scale(self) -> float:
-        if self.compact_mode and self.line_height_scale == 1.0:
-            return _COMPACT_LINE_HEIGHT_SCALE
-        return _clamp(
-            self.line_height_scale if self.line_height_scale is not None else 1.0
-        )
+        return self._effective("line_height")
 
     @property
     def effective_section_spacing_scale(self) -> float:
-        if self.compact_mode and self.section_spacing_scale == 1.0:
-            return _COMPACT_SECTION_SPACING_SCALE
-        return _clamp(
-            self.section_spacing_scale
-            if self.section_spacing_scale is not None
-            else 1.0
-        )
+        return self._effective("section_spacing")
 
     @property
     def effective_item_spacing_scale(self) -> float:
-        if self.compact_mode and self.item_spacing_scale == 1.0:
-            return _COMPACT_ITEM_SPACING_SCALE
-        return _clamp(
-            self.item_spacing_scale if self.item_spacing_scale is not None else 1.0
-        )
+        return self._effective("item_spacing")
 
 
 DEFAULT_SETTINGS = LayoutSettings()

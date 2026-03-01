@@ -5,6 +5,7 @@ __pycache__/
 
 # Local runtime outputs
 cache/
+_deps/
 resume_output/**/*.pdf
 /.opencode/plans/
 /YINGLUN_ZHANG_SDE_AI_Resume.pdf
@@ -15,3 +16,9 @@ resume_output/**/*.pdf
 
 # Local worktrees
 .worktrees/
+
+# Personal data
+raw_resume.txt
+
+# Claude Code local config
+.claude/
