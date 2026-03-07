@@ -38,21 +38,11 @@ Based on my resume, generate a general SDE resume focused on AI model engineerin
 
 ## Installation
 
-For detailed installation steps (both agent auto-install and manual install), see [`docs/guide/installation.md`](docs/guide/installation.md).
-
-### Quick Start
-
-**OpenCode**: Send this message to OpenCode Agent:
-
-```
-Please read and strictly execute docs/guide/installation.md to complete resume-tailor dependency skill installation and verification.
+```bash
+python3 -m pip install -r requirements.txt
 ```
 
-**Claude Code**: Run the slash command in the project directory:
-
-```
-/install-skill-deps
-```
+All dependent skills (`pdf`, `docx`, `humanizer`) are bundled in `vendor/skills/` — no separate installation required.
 
 ## Usage Flow
 
@@ -68,10 +58,10 @@ After skill activation, it automatically executes the following 4-phase flow. Ag
 
 ### Phase C: Compress & Quality
 - **Volume Gate**: Score bullets via `score_all_bullets()` against `cache/jd-analysis.json`, then check working cache against volume thresholds; if exceeded, compress following consolidation order and constraints
-- **QA & De-AI**: Call `humanizer` for natural expression, then run structure / quantification / ATS checks
+- **QA & De-AI**: Apply `humanizer` guidance for natural expression, then run structure / quantification / ATS checks
 
 ### Phase D: Generate & Deliver
-- **PDF Generation**: Call `pdf` skill, then generate with `--auto-fit`. If QC fails, retry up to 3 times with escalating layout parameters
+- **PDF Generation**: Follow `pdf` skill guide, then generate with `--auto-fit`. If QC fails, retry up to 3 times with escalating layout parameters
 - **Summary Report**: Output a structured summary report covering all decisions made (job analysis, modifications, compression, QA results)
 - **Wrap-up**: Update `cache/user-profile.md`, retain working cache for future iterations
 
@@ -138,14 +128,12 @@ resume-tailor/
 │   ├── test_jd_analysis.py          # JD analysis cache operations
 │   ├── test_schema_validation.py    # JSON schema validation
 │   └── test_generate_final_resume_cli_args.py  # CLI arg parsing
+├── vendor/skills/                   # Bundled dependent skills
+│   ├── pdf/                         # PDF read/generate skill
+│   ├── docx/                        # DOCX read/edit skill
+│   └── humanizer/                   # AI trace removal skill
 ├── docs/guide/                      # Installation guide
-│   └── installation.md              # Agent-executable install flow
-├── install/                         # Install manifest
-│   └── agent-install.yaml           # Machine-readable install manifest
-├── .opencode/command/               # OpenCode commands
-│   └── install-skill-deps.md        # Command-based install entry
-├── .claude/commands/                # Claude Code commands
-│   └── install-skill-deps.md        # Command-based install entry
+│   └── installation.md              # Setup instructions
 └── requirements.txt                 # Python dependencies
 ```
 
@@ -235,7 +223,7 @@ Welcome to submit Issues and Pull Requests to improve this Skill!
 
 ## FAQ
 
-**Q: Why install 3 dependent skills?**
+**Q: What are the 3 bundled skills in `vendor/skills/`?**
 
 A:
 - `pdf`: Read existing PDF resumes and generate final PDF

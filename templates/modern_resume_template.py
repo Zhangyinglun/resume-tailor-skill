@@ -185,6 +185,23 @@ def archive_root_pdfs(
     return archived
 
 
+def delete_root_pdfs(
+    base_output_dir: Path, exclude_names: set[str] | None = None
+) -> list[Path]:
+    """Delete historical PDFs from output root directory (QA not passed)."""
+    excluded = exclude_names or set()
+    deleted: list[Path] = []
+
+    for pdf_file in sorted(base_output_dir.glob("*.pdf")):
+        if pdf_file.name in excluded:
+            continue
+        pdf_file.unlink()
+        deleted.append(pdf_file)
+        print(f"\u2717 Old file deleted (QA not passed): {pdf_file}")
+
+    return deleted
+
+
 def _render_two_col_items(
     story: list,
     items: list[dict[str, Any]],
@@ -320,7 +337,6 @@ def generate_resume(
 
     doc.build(story)
 
-    archive_root_pdfs(base_output_dir, exclude_names={temp_output_path.name})
     temp_output_path.replace(output_path)
 
     print(f"\u2713 PDF generation completed: {output_path}")

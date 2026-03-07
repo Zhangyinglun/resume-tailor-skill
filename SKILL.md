@@ -18,7 +18,7 @@ description: Use when user provides JD and existing resume, expecting job-target
 - **ATS Friendly**: No table-based main layout, no images replacing body text, no key info in headers/footers.
 - **Fixed A4 + Single Page**: Default delivery 210mm x 297mm, 1 page.
 - **PDF Only Delivery**: Final output is PDF only.
-- **Call `pdf` skill before PDF actions**: Execute before initial generation, minor regeneration, or final export.
+- **Read `vendor/skills/pdf/SKILL.md` before PDF actions**: Execute before initial generation, minor regeneration, or final export.
 - **Auto-fit Scope**: Automatic tuning may adjust layout parameters only; it must not rewrite resume content unless user explicitly asks.
 
 ## Stateless Boundary (Mandatory)
@@ -43,10 +43,10 @@ description: Use when user provides JD and existing resume, expecting job-target
 
 ### Phase C – Compress & Quality
 1. **Volume Gate**: Score bullets via `score_all_bullets()` against `cache/jd-analysis.json`, then check working cache against volume thresholds; if compression needed, prioritize removing lowest-scored bullets first, then `update`.
-2. **QA & De-AI**: Call `humanizer` for natural expression, then run structure/quantification/ATS checks.
+2. **QA & De-AI**: Read `vendor/skills/humanizer/SKILL.md` for natural expression guidance, then run structure/quantification/ATS checks.
 
 ### Phase D – Generate & Deliver
-1. **PDF Generation**: Call `pdf` skill, then generate with `--auto-fit`. If QC fails, retry up to 3 times with escalating parameters.
+1. **PDF Generation**: Read `vendor/skills/pdf/SKILL.md`, then generate with `--auto-fit`. If QC fails, retry up to 3 times with escalating parameters.
 2. **Summary Report**: Output a structured summary report covering all decisions made. **Must include the full absolute path of the generated PDF file.**
 3. **Wrap-up**: Update `cache/user-profile.md`, retain working cache.
 
@@ -111,16 +111,13 @@ Education
 - `scripts/resume_shared.py`: Shared utilities (validation, JSON I/O, parsing helpers) consumed by other scripts.
 - `templates/modern_resume_template.py`: Only responsible for PDF layout and export.
 
-## Dependent Skills
-- `docx`: Read `.docx` resumes
-- `pdf`: Read PDFs, execute all PDF generation and recheck actions
-- `humanizer`: Remove AI traces, enhance natural expression
+## Bundled Skills (vendor/)
 
-## Agent Installation and Auto-Execution Entry
-- Master installation entry: `docs/guide/installation.md`
-- Machine-readable manifest: `install/agent-install.yaml`
-- OpenCode command entry: `.opencode/command/install-skill-deps.md`
-- Claude Code command entry: `.claude/commands/install-skill-deps.md`
+All dependent skills are bundled in the `vendor/skills/` directory — no separate installation required.
+
+- `vendor/skills/pdf/SKILL.md`: PDF read/generate guide — read before any PDF action
+- `vendor/skills/docx/SKILL.md`: DOCX read/edit guide — read before reading `.docx` files
+- `vendor/skills/humanizer/SKILL.md`: AI trace removal guide — read before humanizing text
 
 ## Reference Materials
 - Full process checklist and thresholds: `references/execution-checklist.md`

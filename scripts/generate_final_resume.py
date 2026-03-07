@@ -16,9 +16,10 @@ if str(PROJECT_ROOT) not in sys.path:
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from templates.modern_resume_template import generate_resume  # noqa: E402
+from templates.modern_resume_template import generate_resume, archive_root_pdfs, delete_root_pdfs  # noqa: E402
 from templates.layout_settings import LayoutSettings  # noqa: E402
 from layout_auto_tuner import auto_fit_layout, LAYOUT_FIXABLE_CHECKS, CONTENT_CHECKS  # noqa: E402
+from check_pdf_quality import check_pdf_file  # noqa: E402
 from scripts.resume_shared import load_json_file, validate_resume_content  # noqa: E402
 
 
@@ -116,6 +117,18 @@ def main() -> int:
     except (ValueError, FileNotFoundError, OSError) as exc:
         print(f"Generation failed: {exc}", file=sys.stderr)
         return 1
+
+    output_file_path = Path(output_path)
+    qa_report = check_pdf_file(output_file_path)
+    qa_passed = qa_report.get("verdict") == "PASS"
+
+    if qa_passed:
+        print("\u2713 QA passed \u2014 archiving previous version(s) to backup/")
+        archive_root_pdfs(output_dir, exclude_names={output_file_path.name})
+    else:
+        failed = [c["name"] for c in qa_report.get("checks", []) if not c.get("passed")]
+        print(f"\u2717 QA not passed ({', '.join(failed)}) \u2014 old file(s) removed, not archived")
+        delete_root_pdfs(output_dir, exclude_names={output_file_path.name})
 
     print(f"Generated successfully: {output_path}")
     return 0

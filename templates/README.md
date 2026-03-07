@@ -11,7 +11,7 @@
 
 - Font: Prioritize Calibri, auto-fallback to Helvetica if unavailable
 - Header: Name and contact info centered display
-- Structure: Summary → Technical Skills → Professional Experience → Education
+- Structure: Summary → Professional Experience → Technical Skills → Education
 - Experience section: First line Company (left) and Dates (right); second line Title | Location
 
 ## Cross-platform Font Notes
@@ -32,13 +32,13 @@
 ### Method 1: JSON Working Cache (Recommended)
 
 ```bash
-py -3 scripts/generate_final_resume.py --input-json cache/resume-working.json --output-file 02_10_Name_Backend_Engineer_resume.pdf --output-dir resume_output
+python3 scripts/generate_final_resume.py --input-json cache/resume-working.json --output-file 02_10_Name_Backend_Engineer_resume.pdf --output-dir resume_output
 ```
 
 ### Method 1.1: JSON Working Cache + Auto-fit Layout
 
 ```bash
-py -3 scripts/generate_final_resume.py --input-json cache/resume-working.json --output-file 02_10_Name_Backend_Engineer_resume.pdf --output-dir resume_output --auto-fit
+python3 scripts/generate_final_resume.py --input-json cache/resume-working.json --output-file 02_10_Name_Backend_Engineer_resume.pdf --output-dir resume_output --auto-fit
 ```
 
 Notes:
@@ -48,7 +48,7 @@ Notes:
 ### Method 2: JSON Data (Custom Path)
 
 ```bash
-py -3 scripts/generate_final_resume.py --input-json resume_content.json --output-file 02_10_Name_Backend_Engineer_resume.pdf --output-dir resume_output
+python3 scripts/generate_final_resume.py --input-json resume_content.json --output-file 02_10_Name_Backend_Engineer_resume.pdf --output-dir resume_output
 ```
 
 ## Working Cache Related Scripts
@@ -58,19 +58,19 @@ py -3 scripts/generate_final_resume.py --input-json resume_content.json --output
 **One-time initialization of long-term template** (first use or updating general resume):
 
 ```bash
-py -3 scripts/resume_cache_manager.py template-init --workspace . --input my_full_resume.txt
+python3 scripts/resume_cache_manager.py template-init --workspace . --input my_full_resume.txt
 ```
 
 **Check if template exists**:
 
 ```bash
-py -3 scripts/resume_cache_manager.py template-check --workspace .
+python3 scripts/resume_cache_manager.py template-check --workspace .
 ```
 
 **View template content**:
 
 ```bash
-py -3 scripts/resume_cache_manager.py template-show --workspace .
+python3 scripts/resume_cache_manager.py template-show --workspace .
 ```
 
 **Generate initial resume based on JD (simplified workflow)**:
@@ -86,19 +86,19 @@ Step 3: Continuously update `cache/resume-working.json` based on Q&A
 - Initialize cache:
 
 ```bash
-py -3 scripts/resume_cache_manager.py init --workspace . --input raw_resume.txt
+python3 scripts/resume_cache_manager.py init --workspace . --input raw_resume.txt
 ```
 
 - Update cache:
 
 ```bash
-py -3 scripts/resume_cache_manager.py update --workspace . --input reviewed_resume.json
+python3 scripts/resume_cache_manager.py update --workspace . --input reviewed_resume.json
 ```
 
 - Cleanup cache (optional, manual trigger):
 
 ```bash
-py -3 scripts/resume_cache_manager.py cleanup --workspace .
+python3 scripts/resume_cache_manager.py cleanup --workspace .
 ```
 
 ## Backup Strategy

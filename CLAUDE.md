@@ -95,16 +95,11 @@ Optional fields: `projects`, `certifications`, `awards`
 - PDF output must be: single page, A4 (±1mm), text-extractable, ATS-friendly (no table-based layout)
 - Backup policy: existing PDFs move to `resume_output/backup/{Position}/` before overwrite
 
-## Dependent Skills
+## Bundled Skills
 
-Three external skills required at install time (see `install/agent-install.yaml`):
-- `pdf` — PDF read/generate
-- `docx` — DOCX resume import
-- `humanizer` — AI trace removal
+Three dependent skills are bundled in `vendor/skills/` — no separate installation required.
 
-**Claude Code**: Dependencies install to project-local `_deps/skills/`. Run `/install-skill-deps` to auto-install.
-
-**How to use dependent skills in Claude Code**: Claude Code does not auto-discover skills from `_deps/skills/`. When the resume-tailor workflow requires calling a dependent skill (e.g., `pdf`, `docx`, `humanizer`), read the corresponding `SKILL.md` file and follow its instructions:
-- `pdf`: Read `_deps/skills/pdf/SKILL.md` before any PDF read/generate action
-- `docx`: Read `_deps/skills/docx/SKILL.md` before reading `.docx` files
-- `humanizer`: Read `_deps/skills/humanizer/SKILL.md` before AI trace removal
+When the resume-tailor workflow requires a dependent skill, read the corresponding `SKILL.md` and follow its instructions:
+- `pdf`: Read `vendor/skills/pdf/SKILL.md` before any PDF read/generate action
+- `docx`: Read `vendor/skills/docx/SKILL.md` before reading `.docx` files
+- `humanizer`: Read `vendor/skills/humanizer/SKILL.md` before AI trace removal

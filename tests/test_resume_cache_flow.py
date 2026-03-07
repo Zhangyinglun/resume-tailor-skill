@@ -58,20 +58,20 @@ Education
 Example University | M.S. in Computer Science | 2018 - 2020
 """
 
-SAMPLE_TAB_DELIMITED_TEXT = """YINGLUN ZHANG
-+1 (206) 670-6349 | yinglunzhangwork@gmail.com | Redmond, WA, USA | linkedin.com/in/yinglun-zhang
+SAMPLE_TAB_DELIMITED_TEXT = """JANE DOE
++1 (555) 000-1234 | jane.doe@example.com | Seattle, WA, USA | linkedin.com/in/jane-doe
 
 SUMMARY
 Senior Software Engineer with 8+ years building AI and data platforms.
 
 PROFESSIONAL EXPERIENCE
-Microsoft | Software Engineer\tRedmond, WA | Sep 2024 - Sep 2025
+Example Corp | Software Engineer\tSeattle, WA | Sep 2024 - Sep 2025
 • Built fault-tolerant AI automation reducing manual ticket handling by 85%.
 
 EDUCATION
-Northeastern University | Master of Science in Data Science, GPA: 3.97/4.0\tSep 2021 - Jun 2023
+State University | Master of Science in Data Science, GPA: 3.97/4.0\tSep 2021 - Jun 2023
 Coursework: Machine Learning, Neural Networks, Deep Learning
-Shanghai University | Bachelor of Science in Computer Science\tSep 2012 - Jul 2016
+City University | Bachelor of Science in Computer Science\tSep 2012 - Jul 2016
 
 TECHNICAL SKILLS
 Languages & Frameworks: Go, Java, Python
@@ -149,13 +149,13 @@ class ResumeCacheFlowTest(unittest.TestCase):
             init_cache_from_text(workspace, SAMPLE_TAB_DELIMITED_TEXT)
 
             payload = read_cache_json(workspace)
-            self.assertEqual(payload["experience"][0]["company"], "Microsoft")
+            self.assertEqual(payload["experience"][0]["company"], "Example Corp")
             self.assertEqual(payload["experience"][0]["title"], "Software Engineer")
-            self.assertEqual(payload["experience"][0]["location"], "Redmond, WA")
+            self.assertEqual(payload["experience"][0]["location"], "Seattle, WA")
             self.assertEqual(payload["experience"][0]["dates"], "Sep 2024 - Sep 2025")
 
             self.assertEqual(
-                payload["education"][0]["school"], "Northeastern University"
+                payload["education"][0]["school"], "State University"
             )
             self.assertEqual(
                 payload["education"][0]["degree"],
@@ -163,7 +163,7 @@ class ResumeCacheFlowTest(unittest.TestCase):
             )
             self.assertEqual(payload["education"][0]["dates"], "Sep 2021 - Jun 2023")
             self.assertEqual(len(payload["education"]), 2)
-            self.assertEqual(payload["education"][1]["school"], "Shanghai University")
+            self.assertEqual(payload["education"][1]["school"], "City University")
             self.assertEqual(
                 payload["education"][1]["degree"],
                 "Bachelor of Science in Computer Science",

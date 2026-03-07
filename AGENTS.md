@@ -13,7 +13,8 @@
 - `templates/`：`modern_resume_template.py`、`layout_settings.py`、`design_tokens.py`
 - `tests/`：回归测试
 - `references/`：策略和流程资料
-- `docs/guide/`、`install/`：安装和执行入口
+- `vendor/skills/`：内联的依赖 skill（pdf、docx、humanizer）
+- `docs/guide/`：安装指南
 
 ## 3) 推荐阅读顺序
 1. `README.md`
@@ -171,11 +172,8 @@ if __name__ == "__main__":
 ### OpenCode
 - 全局技能目录：`~/.config/opencode/skills/`
 - 技能通过 `SKILL.md` frontmatter 自动发现
-- 依赖技能安装到全局目录
-- 命令入口：`.opencode/command/install-skill-deps.md`
+- 依赖技能已内联到 `vendor/skills/`，无需额外安装
 
 ### Claude Code
 - 无全局技能目录，通过项目级 `CLAUDE.md` + `.claude/commands/` 斜杠命令工作
-- 依赖技能安装到项目本地 `_deps/skills/` 目录，保持项目自包含
-- 命令入口：`.claude/commands/install-skill-deps.md`
-- 安装依赖技能：`/install-skill-deps`
+- 依赖技能已内联到 `vendor/skills/`，无需额外安装

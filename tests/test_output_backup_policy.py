@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from templates.modern_resume_template import archive_root_pdfs
+from templates.modern_resume_template import archive_root_pdfs, delete_root_pdfs
 
 
 def write_dummy_pdf(path: Path) -> None:
@@ -62,6 +62,44 @@ class OutputBackupPolicyTest(unittest.TestCase):
             self.assertFalse(current_pdf.exists())
             self.assertTrue(existing_backup.exists())
             self.assertTrue(next_backup.exists())
+
+
+    def test_delete_root_pdfs_removes_old_files(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir)
+            old_backend = output_dir / "02_10_Alice_Backend_Engineer_resume.pdf"
+            old_ml = output_dir / "02_11_Alice_ML_Engineer_resume.pdf"
+            new_pdf = output_dir / "02_12_Alice_Data_Engineer_resume.pdf"
+
+            write_dummy_pdf(old_backend)
+            write_dummy_pdf(old_ml)
+            write_dummy_pdf(new_pdf)
+
+            deleted = delete_root_pdfs(output_dir, exclude_names={new_pdf.name})
+
+            self.assertEqual(len(deleted), 2)
+            self.assertFalse(old_backend.exists())
+            self.assertFalse(old_ml.exists())
+            # new file preserved
+            self.assertTrue(new_pdf.exists())
+            # nothing moved to backup/
+            backup_dir = output_dir / "backup"
+            self.assertFalse(backup_dir.exists())
+
+    def test_delete_root_pdfs_preserves_excluded(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir)
+            kept = output_dir / "02_10_Alice_Backend_Engineer_resume.pdf"
+            to_delete = output_dir / "02_09_Alice_Backend_Engineer_resume.pdf"
+
+            write_dummy_pdf(kept)
+            write_dummy_pdf(to_delete)
+
+            deleted = delete_root_pdfs(output_dir, exclude_names={kept.name})
+
+            self.assertEqual(len(deleted), 1)
+            self.assertTrue(kept.exists())
+            self.assertFalse(to_delete.exists())
 
 
 if __name__ == "__main__":
