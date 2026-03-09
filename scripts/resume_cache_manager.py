@@ -187,11 +187,6 @@ def _split_two_fields(value: str, defaults: tuple[str, str]) -> tuple[str, str]:
     return value.strip() or defaults[0], defaults[1]
 
 
-def _make_entry(**fields: str) -> dict[str, Any]:
-    """Create a placeholder entry dict with given field names and values."""
-    return dict(fields)
-
-
 _EXP_DEFAULTS = {"company": "[Company]", "title": "[Title]", "location": "[Location]", "dates": "[Dates]"}
 _EXP_PLACEHOLDER_BULLET = "[To be filled: Experience details]"
 

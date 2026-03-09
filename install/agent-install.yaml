@@ -1,0 +1,28 @@
+version: 1
+name: resume-tailor-agent-setup
+bundled_skills:
+  - pdf
+  - docx
+  - humanizer
+
+requirements:
+  - check: python3 --version || py -3 --version
+  - check: python3 -m pip --version || py -3 -m pip --version
+
+install_plan:
+  - run: python3 -m pip install -r requirements.txt || py -3 -m pip install -r requirements.txt
+  - verify: vendor/skills/pdf/SKILL.md
+  - verify: vendor/skills/docx/SKILL.md
+  - verify: vendor/skills/humanizer/SKILL.md
+
+post_check:
+  - ensure_exists: vendor/skills/pdf/SKILL.md
+  - ensure_exists: vendor/skills/docx/SKILL.md
+  - ensure_exists: vendor/skills/humanizer/SKILL.md
+  - ensure_exists: SKILL.md
+  - ensure_exists: AGENTS.md
+  - ensure_exists: CLAUDE.md
+
+report:
+  - print: setup complete for bundled skills => pdf, docx, humanizer
+  - print: no external skill clone required

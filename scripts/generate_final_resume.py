@@ -8,18 +8,14 @@ import argparse
 import sys
 from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-if str(SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPT_DIR))
-
 from templates.modern_resume_template import generate_resume, archive_root_pdfs, delete_root_pdfs  # noqa: E402
 from templates.layout_settings import LayoutSettings  # noqa: E402
-from layout_auto_tuner import auto_fit_layout, LAYOUT_FIXABLE_CHECKS, CONTENT_CHECKS  # noqa: E402
-from check_pdf_quality import check_pdf_file  # noqa: E402
+from scripts.layout_auto_tuner import auto_fit_layout, LAYOUT_FIXABLE_CHECKS, CONTENT_CHECKS  # noqa: E402
+from scripts.check_pdf_quality import check_pdf_file  # noqa: E402
 from scripts.resume_shared import load_json_file, validate_resume_content  # noqa: E402
 
 

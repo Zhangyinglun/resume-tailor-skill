@@ -8,8 +8,6 @@ import argparse
 import json
 from collections import Counter
 from pathlib import Path
-from typing import Any
-
 from scripts.resume_shared import _DIGIT_RE, collect_bullets, load_json_file
 
 STRONG_VERBS: set[str] = {
@@ -146,11 +144,9 @@ def check_bullet_count(exp_bullets: list[str]) -> dict[str, str]:
     }
 
 
-def run_all_checks(resume_path: Path, jd_path: Path | None = None) -> list[dict[str, str]]:
+def run_all_checks(resume_path: Path) -> list[dict[str, str]]:
     """Run all content quality checks."""
     resume = load_json_file(resume_path)
-    # jd_path reserved for future keyword density check (Task 6)
-
     all_bullets = collect_bullets(resume, include_projects=True)
     exp_bullets = collect_bullets(resume, include_projects=False)
 
@@ -166,14 +162,11 @@ def run_all_checks(resume_path: Path, jd_path: Path | None = None) -> list[dict[
 def main() -> int:
     parser = argparse.ArgumentParser(description="Content quality checks for resume JSON")
     parser.add_argument("resume_json", help="Path to resume-working.json")
-    parser.add_argument("--jd-json", help="Path to jd-analysis.json (optional)")
     parser.add_argument("--json", action="store_true", help="Output results as JSON")
     args = parser.parse_args()
 
     resume_path = Path(args.resume_json).expanduser().resolve()
-    jd_path = Path(args.jd_json).expanduser().resolve() if args.jd_json else None
-
-    results = run_all_checks(resume_path, jd_path)
+    results = run_all_checks(resume_path)
 
     if args.json:
         print(json.dumps(results, ensure_ascii=False, indent=2))

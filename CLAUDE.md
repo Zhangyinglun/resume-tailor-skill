@@ -1,105 +1,39 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Repository instructions for Claude Code when this skill package is opened directly.
 
-## Project Overview
+## Start Here
 
-OpenCode / Claude Code Skill for job-targeted resume optimization. Generates ATS-friendly single-page A4 PDF resumes from a JSON cache, with automated layout tuning and 12-point quality checks. Built on ReportLab for PDF rendering and pdfplumber for quality inspection.
+- Main workflow: `SKILL.md`
+- Claude helpers:
+  - `.claude/commands/resume-tailor.md`
+  - `.claude/commands/check-resume-tailor-setup.md`
+- Install notes: `docs/guide/installation.md`
 
-## Commands
+## Core Commands
 
 ```bash
-# Install dependencies
 python3 -m pip install -r requirements.txt
-
-# Run all tests
-python3 -m pytest -q
-
-# Run single test file
-python3 -m pytest tests/test_resume_cache_flow.py -q
-
-# Run single test case
-python3 -m pytest tests/test_resume_cache_flow.py::ResumeCacheFlowTest::test_base_template_lifecycle -q
-
-# Run tests by keyword
-python3 -m pytest -k "layout and not auto" -q
-
-# Core script commands
 python3 scripts/resume_cache_manager.py reset
-python3 scripts/resume_cache_manager.py template-init --workspace . --input raw_resume.txt
+python3 scripts/resume_cache_manager.py template-check --workspace .
 python3 scripts/resume_cache_manager.py template-use --workspace .
-python3 scripts/generate_final_resume.py --input-json cache/resume-working.json --output-file resume.pdf --output-dir resume_output
 python3 scripts/generate_final_resume.py --input-json cache/resume-working.json --output-file resume.pdf --output-dir resume_output --auto-fit
 python3 scripts/check_pdf_quality.py resume_output/resume.pdf
-python3 scripts/check_pdf_quality.py resume_output/resume.pdf --json
+python3 scripts/check_agent_platform_support.py
 ```
 
-## Architecture
+## Repository Contract
 
-### Data Flow
-
-```
-Raw text / DOCX → resume_cache_manager.py → cache/resume-working.json
-                                                      ↓
-                                          generate_final_resume.py
-                                            (+ layout_auto_tuner.py)
-                                                      ↓
-                                          modern_resume_template.py (ReportLab)
-                                                      ↓
-                                              resume_output/*.pdf
-                                                      ↓
-                                            check_pdf_quality.py → PASS / NEED-ADJUSTMENT
-```
-
-### Core Scripts (`scripts/`)
-
-| Script | Role |
-|--------|------|
-| `resume_cache_manager.py` | JSON cache CRUD: reset, init, update, show, diff, template management |
-| `generate_final_resume.py` | PDF generation entry point with CLI args; delegates to template + auto-tuner |
-| `check_pdf_quality.py` | 12-check PDF QA (page count, A4 size, text layer, margins, sections, contacts, placeholders, etc.) |
-| `check_content_quality.py` | Content-level quality checks on resume JSON (bullet scoring, verb strength, quantification) |
-| `layout_auto_tuner.py` | Searches 12 preset layout candidates, picks optimal by QA pass + readability score |
-| `resume_shared.py` | Shared utilities: validation, JSON I/O, parsing helpers |
-
-### Templates (`templates/`)
-
-| File | Role |
-|------|------|
-| `modern_resume_template.py` | ReportLab PDF renderer (fonts, styles, section layout) |
-| `layout_settings.py` | Immutable dataclass for layout params (font/line/spacing scales, margins); auto-clamps to 0.7–1.3 |
-| `design_tokens.py` | Centralized design constants (base font sizes, leading, spacing) before layout scaling |
-
-### Stateless Boundary
-
-- **Versioned (skill directory)**: scripts, templates, references, tests
-- **Runtime only (not versioned)**: `cache/`, `resume_output/` — isolated per workspace via `.gitignore`
-
-### JSON Cache Schema (`cache/resume-working.json`)
-
-Required fields: `name`, `contact`, `summary`, `skills`, `experience`, `education`
-Optional fields: `projects`, `certifications`, `awards`
-
-## Code Style
-
-详细代码风格规范见 `AGENTS.md` 第 5 节。
-
-## Pre-commit Checklist
-
-详见 `AGENTS.md` 第 9 节。
-
-## Key Constraints
-
-- **auto-fit** adjusts only layout params (font, line-height, spacing, margins) — never modifies resume content
-- Changes to PDF generation logic must be validated against QC check rules
-- PDF output must be: single page, A4 (±1mm), text-extractable, ATS-friendly (no table-based layout)
-- Backup policy: existing PDFs move to `resume_output/backup/{Position}/` before overwrite
+- This repository is the skill package, not a runtime workspace.
+- Keep versioned content limited to reusable scripts, templates, references, and platform entry files.
+- User-specific data belongs in `cache/` and `resume_output/` inside the target workspace.
+- `--auto-fit` must only change layout parameters.
+- Bundled dependency skills live under `vendor/skills/` and are the source of truth.
 
 ## Bundled Skills
 
-Three dependent skills are bundled in `vendor/skills/` — no separate installation required.
+Read the dependency skill before using that domain:
 
-When the resume-tailor workflow requires a dependent skill, read the corresponding `SKILL.md` and follow its instructions:
-- `pdf`: Read `vendor/skills/pdf/SKILL.md` before any PDF read/generate action
-- `docx`: Read `vendor/skills/docx/SKILL.md` before reading `.docx` files
-- `humanizer`: Read `vendor/skills/humanizer/SKILL.md` before AI trace removal
+- `vendor/skills/pdf/SKILL.md`
+- `vendor/skills/docx/SKILL.md`
+- `vendor/skills/humanizer/SKILL.md`
