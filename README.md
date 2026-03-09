@@ -2,98 +2,94 @@
 
 [中文](README.zh-CN.md)
 
-`resume-tailor` is a distributable skill package for Codex, Claude Code, and OpenCode. It turns an existing resume plus a target JD into an ATS-friendly single-page A4 PDF, using bundled scripts, templates, and dependency skills from `vendor/skills/`.
+A distributable **AI skill** for Claude Code, Codex, and OpenCode. Give it your resume + a JD — it delivers an ATS-optimized single-page A4 PDF.
 
-## What It Includes
+---
 
-- JD-oriented resume analysis and rewrite workflow in `SKILL.md`
-- Workspace cache management in `scripts/resume_cache_manager.py`
-- PDF generation and auto-fit layout tuning in `scripts/generate_final_resume.py`
-- PDF and content quality checks in `scripts/check_pdf_quality.py` and `scripts/check_content_quality.py`
-- Bundled dependency skills in `vendor/skills/`: `pdf`, `docx`, `humanizer`
-- Platform entrypoints for Codex, Claude Code, and OpenCode
+## 1-Minute Quickstart
 
-## Trigger Examples
-
-Use this skill when the user provides a target JD or direction plus an existing resume and asks for a tailored PDF resume.
-
-```text
-I have a Product Manager JD and my current resume. Tailor it into an ATS-friendly single-page PDF.
-```
-
-```text
-Analyze my resume against this JD, rewrite the content, and generate the final PDF.
-```
-
-## Install
+### Step 1 — Install
 
 ```bash
+git clone https://github.com/your-org/resume-tailor-skill
+cd resume-tailor-skill
 python3 -m pip install -r requirements.txt
 ```
 
-The repository already bundles its dependency skills. No extra clone is required.
+### Step 2 — Register with your AI agent
 
-## Platform Entry Points
+| Platform | What to do |
+|---|---|
+| **Claude Code** | Open this repo in Claude Code. Done — `CLAUDE.md` auto-loads. |
+| **Codex** | Copy repo to `~/.agents/skills/resume-tailor/` |
+| **OpenCode** | Copy repo to `~/.config/opencode/skills/resume-tailor/` |
 
-| Platform | Entry points | Recommended location |
-| --- | --- | --- |
-| Codex | `SKILL.md`, `AGENTS.md` | `~/.agents/skills/resume-tailor/` |
-| Claude Code | `SKILL.md`, `CLAUDE.md`, `.claude/commands/` | repository checkout |
-| OpenCode | `SKILL.md`, `.opencode/command/`, `install/agent-install.yaml` | `~/.config/opencode/skills/resume-tailor/` |
+### Step 3 — Use it
 
-Detailed setup notes are in `docs/guide/installation.md`.
+Paste your JD and resume into the chat and say:
 
-## Minimal Workflow
-
-1. Initialize the workspace cache with `scripts/resume_cache_manager.py`.
-2. Analyze the JD, update `cache/resume-working.json`, and keep changes factual.
-3. Run content and volume checks before PDF generation.
-4. Generate the PDF with `scripts/generate_final_resume.py`, optionally using `--auto-fit`.
-5. Validate the result with `scripts/check_pdf_quality.py`.
-
-The skill remains stateless. User-specific data stays in workspace runtime folders such as `cache/` and `resume_output/`, not in the skill package itself.
-
-## Core Commands
-
-On Windows PowerShell, prefer `$env:PYTHONPATH='.'; py -3 ...` when calling scripts directly.
-
-```bash
-# Reset and inspect cache
-python3 scripts/resume_cache_manager.py reset
-python3 scripts/resume_cache_manager.py template-check --workspace .
-python3 scripts/resume_cache_manager.py template-use --workspace .
-
-# Generate and check the final PDF
-python3 scripts/generate_final_resume.py --input-json cache/resume-working.json --output-file resume.pdf --output-dir resume_output --auto-fit
-python3 scripts/check_pdf_quality.py resume_output/resume.pdf
-
-# Smoke-check platform assets
-python3 scripts/check_agent_platform_support.py
 ```
+Tailor my resume for this JD and output a single-page PDF.
+```
+
+The agent handles everything: keyword alignment, content rewrite, layout, and PDF delivery.
+
+---
+
+## How It Works
+
+```
+You provide: existing resume + target JD
+      │
+      ▼
+[A] Initialize workspace cache
+      │
+      ▼
+[B] Analyze JD → rewrite bullets (no fabrication)
+      │
+      ▼
+[C] Volume gate → compress to 1 page → humanize language
+      │
+      ▼
+[D] Generate PDF → quality check → deliver with summary report
+```
+
+The skill is **stateless** — your data stays in your workspace's `cache/` and `resume_output/` folders, never inside the skill package.
+
+---
 
 ## Repository Layout
 
-```text
+```
 resume-tailor/
-├── SKILL.md
-├── AGENTS.md
-├── CLAUDE.md
-├── scripts/
-├── templates/
-├── references/
-├── vendor/skills/
-├── .claude/commands/
+├── SKILL.md                   # Main skill definition (agent reads this)
+├── CLAUDE.md                  # Claude Code auto-load config
+├── AGENTS.md                  # Codex entry point
+├── requirements.txt
+├── scripts/                   # resume_cache_manager.py, generate_final_resume.py, ...
+├── templates/                 # .docx base template (Calibri / Helvetica fallback)
+├── references/                # Optimization action codes, schema notes, prompt helpers
+├── vendor/skills/             # Bundled dependencies: pdf, docx, humanizer
+├── .claude/commands/          # /resume-tailor and /check-resume-tailor-setup
 ├── .opencode/command/
-├── install/
-└── docs/guide/
+└── docs/guide/installation.md
 ```
 
-## Notes
+---
 
-- `--auto-fit` only changes layout parameters. It does not rewrite resume content.
-- The generated PDF targets A4, one page, and extractable text.
-- If Calibri is unavailable, the template falls back to Helvetica.
-- `references/` contains workflow rules, schema notes, and prompt helpers used by the skill.
+## Verify Installation
+
+```bash
+python3 scripts/check_agent_platform_support.py
+```
+
+---
+
+## Key Constraints
+
+- **No fabrication** — only rewrites and rearranges what you actually have.
+- **`--auto-fit`** only adjusts layout parameters, never rewrites content.
+- Output is always A4, one page, extractable-text PDF.
 
 ## License
 
