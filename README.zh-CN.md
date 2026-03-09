@@ -83,7 +83,7 @@ resume-tailor/
 python3 scripts/check_agent_platform_support.py
 ```
 
----
+可选 lint：
 
 ## 关键约束
 

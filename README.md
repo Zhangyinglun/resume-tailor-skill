@@ -1,6 +1,6 @@
 # resume-tailor
 
-[中文](README.zh-CN.md)
+[中文说明](README.zh-CN.md)
 
 A distributable **AI skill** for Claude Code, Codex, and OpenCode. Give it your resume + a JD — it delivers an ATS-optimized single-page A4 PDF.
 
@@ -83,7 +83,7 @@ resume-tailor/
 python3 scripts/check_agent_platform_support.py
 ```
 
----
+Optional lint:
 
 ## Key Constraints
 
