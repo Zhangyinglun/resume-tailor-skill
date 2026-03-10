@@ -118,6 +118,9 @@ def _extract_terms(keyword_list: list[Any]) -> list[str]:
     return terms
 
 
+extract_terms = _extract_terms
+
+
 def score_bullet(bullet: str, p1_terms: list[str], p2_terms: list[str], p3_terms: list[str]) -> dict[str, Any]:
     """Score a single bullet against JD keyword tiers.
 

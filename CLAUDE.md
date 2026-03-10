@@ -19,6 +19,7 @@ python3 scripts/resume_cache_manager.py template-check --workspace .
 python3 scripts/resume_cache_manager.py template-use --workspace .
 python3 scripts/generate_final_resume.py --input-json cache/resume-working.json --output-file resume.pdf --output-dir resume_output --auto-fit
 python3 scripts/check_pdf_quality.py resume_output/resume.pdf
+python3 -m scripts.generate_quality_report --resume cache/resume-working.json --jd-analysis cache/jd-analysis.json --pdf resume_output/resume.pdf
 python3 scripts/check_agent_platform_support.py
 ```
 

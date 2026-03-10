@@ -8,6 +8,7 @@ import argparse
 import json
 from collections import Counter
 from pathlib import Path
+from typing import Any
 from scripts.resume_shared import _DIGIT_RE, collect_bullets, load_json_file
 
 STRONG_VERBS: set[str] = {
@@ -174,9 +175,10 @@ def check_bullet_count(exp_bullets: list[str]) -> dict[str, str]:
     }
 
 
-def run_all_checks(resume_path: Path) -> list[dict[str, str]]:
-    """Run all content quality checks."""
-    resume = load_json_file(resume_path)
+def run_all_checks(resume: dict[str, Any] | Path) -> list[dict[str, str]]:
+    """Run all content quality checks on a resume dict or JSON file path."""
+    if isinstance(resume, Path):
+        resume = load_json_file(resume)
     all_bullets = collect_bullets(resume, include_projects=True)
     exp_bullets = collect_bullets(resume, include_projects=False)
 

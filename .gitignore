@@ -4,6 +4,9 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
+# Tests
+tests/
+
 # Local runtime outputs
 cache/
 _deps/

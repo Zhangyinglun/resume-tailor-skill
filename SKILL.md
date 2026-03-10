@@ -47,8 +47,9 @@ description: Use when user provides JD and existing resume, expecting job-target
 
 ### Phase D – Generate & Deliver
 1. **PDF Generation**: Read `vendor/skills/pdf/SKILL.md`, then generate with `--auto-fit`. If QC fails, retry up to 3 times with escalating parameters.
-2. **Summary Report**: Output a structured summary report covering all decisions made. **Must include the full absolute path of the generated PDF file.**
-3. **Wrap-up**: Update `cache/user-profile.md`, retain working cache.
+2. **Quality Report**: Run `python3 -m scripts.generate_quality_report --resume cache/resume-working.json --jd-analysis cache/jd-analysis.json --pdf resume_output/resume.pdf` and embed the stdout output verbatim in the reply.
+3. **Summary Report**: Output a structured summary report covering all decisions made. **Must include the full absolute path of the generated PDF file.**
+4. **Wrap-up**: Update `cache/user-profile.md`, retain working cache.
 
 Complete checklist and thresholds in `references/execution-checklist.md`.
 
@@ -106,6 +107,7 @@ Education
 ## Script Responsibility Boundaries
 - `scripts/resume_cache_manager.py`: Manage `cache/resume-working.json` reset/init/update/show (`cleanup` only manual as needed), `cache/base-resume.json` template-init/template-use/template-show/template-check, and `cache/jd-analysis.json` jd-save/jd-show.
 - `scripts/generate_final_resume.py`: Accept `--input-json`, optionally `--auto-fit`, and generate final PDF.
+- `scripts/generate_quality_report.py`: Print quality report (Markdown) to stdout — no files written. Covers format compliance (PDF), content quality checks, keyword→bullet coverage matrix, and strategy summary.
 - `scripts/check_pdf_quality.py`: Perform general format and text quality checks.
 - `scripts/check_content_quality.py`: Content-level quality checks on resume JSON — bullet scoring, verb strength, quantification rate.
 - `scripts/resume_shared.py`: Shared utilities (validation, JSON I/O, parsing helpers) consumed by other scripts.
