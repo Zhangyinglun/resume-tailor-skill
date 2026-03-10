@@ -31,6 +31,8 @@ _QUANT_GOOD_THRESHOLD = 0.60
 _NGRAM_REPEAT_THRESHOLD = 3
 _EXP_BULLET_MIN = 8
 _EXP_BULLET_MAX = 14
+_EST_CHARS_PER_LINE = 95
+_LINE_FILL_MIN_RATIO = 0.50
 
 
 def check_bullet_length(bullets: list[str]) -> dict[str, str]:
@@ -128,6 +130,34 @@ def check_duplicate_phrases(bullets: list[str]) -> dict[str, str]:
     }
 
 
+def check_bullet_line_fill(bullets: list[str]) -> dict[str, str]:
+    """Check that wrapped bullets have a last line filling ≥50% of line width."""
+    fill_threshold = _EST_CHARS_PER_LINE * _LINE_FILL_MIN_RATIO
+    sparse: list[str] = []
+    for b in bullets:
+        if len(b) <= _EST_CHARS_PER_LINE:
+            continue
+        last_line_chars = len(b) % _EST_CHARS_PER_LINE
+        if last_line_chars == 0:
+            continue
+        if last_line_chars < fill_threshold:
+            sparse.append(b[:80])
+    if sparse:
+        return {
+            "name": "bullet_line_fill",
+            "status": "WARN",
+            "detail": (
+                f"{len(sparse)} bullet(s) have a sparse last line (<50% fill): "
+                + "; ".join(sparse)
+            ),
+        }
+    return {
+        "name": "bullet_line_fill",
+        "status": "PASS",
+        "detail": "All wrapped bullets have ≥50% last-line fill",
+    }
+
+
 def check_bullet_count(exp_bullets: list[str]) -> dict[str, str]:
     """Check that experience bullet count is within 8-14."""
     count = len(exp_bullets)
@@ -156,6 +186,7 @@ def run_all_checks(resume_path: Path) -> list[dict[str, str]]:
         check_quantification_ratio(all_bullets),
         check_duplicate_phrases(all_bullets),
         check_bullet_count(exp_bullets),
+        check_bullet_line_fill(all_bullets),
     ]
 
 

@@ -48,6 +48,7 @@ Check `cache/resume-working.json` against volume thresholds.
 - Non-empty lines: recommended 32-52
 - Total experience bullets: recommended 8-14
 - Single bullet: no more than 2 lines (~28 English words)
+- Wrapped bullet last-line fill: if a bullet wraps to 2 lines, the 2nd line must fill ≥50% of the line width (~47+ chars). Reword to lengthen or shorten.
 
 #### Consolidation Order (must follow sequence)
 1. Delete low-relevance or duplicate information

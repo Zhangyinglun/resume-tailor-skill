@@ -54,8 +54,8 @@ def parse_args() -> argparse.Namespace:
         help="Minimum bottom margin (mm, default 3)",
     )
     parser.add_argument(
-        "--max-bottom-mm", type=float, default=12.0,
-        help="Maximum bottom margin (mm, default 12)",
+        "--max-bottom-mm", type=float, default=8.0,
+        help="Maximum bottom margin (mm, default 8)",
     )
     parser.add_argument(
         "--min-top-mm", type=float, default=3.0,
@@ -296,7 +296,7 @@ def _format_text_report(report: dict[str, Any], pdf_name: str, args: argparse.Na
 
 DEFAULT_MARGIN_THRESHOLDS: dict[str, float] = {
     "min_bottom_mm": 3.0,
-    "max_bottom_mm": 12.0,
+    "max_bottom_mm": 8.0,
     "min_top_mm": 3.0,
     "max_top_mm": 20.0,
     "min_side_mm": 10.0,
