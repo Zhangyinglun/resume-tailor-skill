@@ -15,14 +15,6 @@ from scripts.check_pdf_quality import DEFAULT_MARGIN_THRESHOLDS, check_pdf_file
 from templates.layout_settings import LayoutSettings
 from templates.modern_resume_template import generate_resume
 
-# Midpoint between min and max bottom margin thresholds.
-# Below this → content is too close to page edge → shrink to reclaim space.
-# Above this → too much whitespace at bottom → expand to fill space.
-_BOTTOM_MARGIN_MID_MM = (
-    DEFAULT_MARGIN_THRESHOLDS["min_bottom_mm"]
-    + DEFAULT_MARGIN_THRESHOLDS["max_bottom_mm"]
-) / 2
-
 # Checks that layout tuning can potentially fix (margins, page overflow).
 LAYOUT_FIXABLE_CHECKS = {"page_count", "bottom_margin", "top_margin", "side_margins"}
 
@@ -141,8 +133,11 @@ def _diagnose_direction(report: dict[str, Any]) -> str:
 
     bottom = checks.get("bottom_margin", {})
     bottom_mm = bottom.get("detail", {}).get("bottom_mm")
-    if bottom_mm is not None and bottom.get("passed") is False:
-        return "expand" if bottom_mm > _BOTTOM_MARGIN_MID_MM else "shrink"
+    if bottom_mm is not None:
+        if bottom_mm > DEFAULT_MARGIN_THRESHOLDS["max_bottom_mm"]:
+            return "expand"
+        if bottom.get("passed") is False:
+            return "shrink"
 
     if _failed_checks(report) & LAYOUT_FIXABLE_CHECKS:
         return "shrink"
@@ -151,16 +146,11 @@ def _diagnose_direction(report: dict[str, Any]) -> str:
 
 
 def _build_candidates(
-    max_trials: int, *, hint: LayoutSettings | None = None, direction: str = "shrink",
+    max_trials: int, *, direction: str = "shrink",
 ) -> list[LayoutSettings]:
-    """Build candidate list based on diagnosed direction and optional hint."""
-    default = LayoutSettings(compact_mode=False)
-    presets = [default] + (_expand_candidates() if direction == "expand" else _shrink_candidates())
-
-    if hint is not None and hint not in presets:
-        presets.insert(0, hint)
-
-    return presets[: max(1, max_trials)]
+    """Build candidate layouts for the diagnosed direction."""
+    presets = _expand_candidates() if direction == "expand" else _shrink_candidates()
+    return presets[: max(0, max_trials)]
 
 
 def _readability_score(layout: LayoutSettings) -> float:
@@ -172,7 +162,19 @@ def _compression_distance(layout: LayoutSettings) -> float:
     return sum(abs(1.0 - v) for v in _scales(layout))
 
 
-def score_trial(trial: AutoFitTrial) -> tuple[int, int, int, float, float]:
+def _bottom_margin_preference_score(report: dict[str, Any]) -> float:
+    checks = {check["name"]: check for check in report.get("checks", [])}
+    bottom_mm = checks.get("bottom_margin", {}).get("detail", {}).get("bottom_mm")
+    if bottom_mm is None:
+        return float("-inf")
+    minimum = DEFAULT_MARGIN_THRESHOLDS["min_bottom_mm"]
+    maximum = DEFAULT_MARGIN_THRESHOLDS["max_bottom_mm"]
+    if minimum <= bottom_mm <= maximum:
+        return 0.0
+    return -min(abs(bottom_mm - minimum), abs(bottom_mm - maximum))
+
+
+def score_trial(trial: AutoFitTrial) -> tuple[int, int, int, float, float, float]:
     """Score trial; higher tuple is better.
 
     Priority: pass > fewer layout failures > fewer total > closer to default > higher readability.
@@ -182,6 +184,7 @@ def score_trial(trial: AutoFitTrial) -> tuple[int, int, int, float, float]:
         1 if trial.report.get("verdict") == "PASS" else 0,
         -len(failed & LAYOUT_FIXABLE_CHECKS),
         -len(failed),
+        _bottom_margin_preference_score(trial.report),
         -_compression_distance(trial.layout),
         _readability_score(trial.layout),
     )
@@ -217,8 +220,13 @@ def auto_fit_layout(
             return AutoFitResult(best_layout=first_trial.layout, best_report=first_trial.report, trials_run=1)
 
         # Phase 2: Directional candidates
-        candidates = [c for c in _build_candidates(max_trials - 1, hint=hint_layout, direction=direction)
-                      if c != first_layout]
+        candidates = [
+            candidate
+            for candidate in _build_candidates(
+                max_trials - 1, direction=direction
+            )
+            if candidate != first_layout
+        ]
 
         trials = [first_trial] + [
             _run_trial(content, output_file, layout, base_temp / f"trial-{i}")

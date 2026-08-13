@@ -1,9 +1,5 @@
 version: 1
 name: resume-tailor-agent-setup
-bundled_skills:
-  - pdf
-  - docx
-  - humanizer
 
 requirements:
   - check: python3 --version || py -3 --version
@@ -11,18 +7,15 @@ requirements:
 
 install_plan:
   - run: python3 -m pip install -r requirements.txt || py -3 -m pip install -r requirements.txt
-  - verify: vendor/skills/pdf/SKILL.md
-  - verify: vendor/skills/docx/SKILL.md
-  - verify: vendor/skills/humanizer/SKILL.md
+  - run: python3 scripts/check_agent_platform_support.py || py -3 scripts/check_agent_platform_support.py
 
 post_check:
-  - ensure_exists: vendor/skills/pdf/SKILL.md
-  - ensure_exists: vendor/skills/docx/SKILL.md
-  - ensure_exists: vendor/skills/humanizer/SKILL.md
   - ensure_exists: SKILL.md
-  - ensure_exists: AGENTS.md
-  - ensure_exists: CLAUDE.md
+  - ensure_exists: agents/openai.yaml
+  - ensure_exists: scripts/extract_resume_text.py
+  - ensure_exists: scripts/generate_final_resume.py
+  - ensure_exists: references/resume-language-quality.md
 
 report:
-  - print: setup complete for bundled skills => pdf, docx, humanizer
-  - print: no external skill clone required
+  - print: resume-tailor setup complete
+  - print: personal data must be stored in a separate user workspace

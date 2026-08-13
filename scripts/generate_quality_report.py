@@ -17,8 +17,18 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from scripts.check_content_quality import run_all_checks
-from scripts.resume_shared import extract_terms, load_json_file
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from scripts.check_content_quality import run_all_checks  # noqa: E402
+from scripts.resume_cache_manager import validate_jd_analysis  # noqa: E402
+from scripts.resume_shared import (  # noqa: E402
+    extract_terms,
+    load_json_file,
+    term_matches,
+    validate_resume_content,
+)
 
 _SNIPPET_LEN = 80
 
@@ -36,17 +46,39 @@ def _collect_searchable_texts(resume: dict[str, Any]) -> list[tuple[str, str]]:
         texts.append(("summary", summary))
 
     for i, sk in enumerate(resume.get("skills", [])):
+        category = sk.get("category", "")
+        if category:
+            texts.append((f"skills[{i}].category", category))
         items = sk.get("items", "")
         if items:
             texts.append((f"skills[{i}].items", items))
 
     for i, exp in enumerate(resume.get("experience", [])):
+        title = exp.get("title", "")
+        if title:
+            texts.append((f"experience[{i}].title", title))
         for j, bullet in enumerate(exp.get("bullets", [])):
             texts.append((f"experience[{i}].bullets[{j}]", str(bullet)))
 
     for i, proj in enumerate(resume.get("projects", [])):
+        name = proj.get("name", "")
+        if name:
+            texts.append((f"projects[{i}].name", name))
+        tech = proj.get("tech", "")
+        if tech:
+            texts.append((f"projects[{i}].tech", tech))
         for j, bullet in enumerate(proj.get("bullets", [])):
             texts.append((f"projects[{i}].bullets[{j}]", str(bullet)))
+
+    for i, education in enumerate(resume.get("education", [])):
+        degree = education.get("degree", "")
+        if degree:
+            texts.append((f"education[{i}].degree", degree))
+
+    for i, certification in enumerate(resume.get("certifications", [])):
+        name = certification.get("name", "")
+        if name:
+            texts.append((f"certifications[{i}].name", name))
 
     return texts
 
@@ -67,21 +99,27 @@ def build_keyword_coverage(
     keywords = jd_analysis.get("keywords", {})
     texts = _collect_searchable_texts(resume)
 
-    # Pre-compute lowercase once — avoids repeated .lower() per keyword
-    texts_lower = [(loc, text.lower(), text) for loc, text in texts]
-
     result: dict[str, list[dict[str, Any]]] = {"P1": [], "P2": [], "P3": []}
     for tier in ("P1", "P2", "P3"):
         for raw_kw in extract_terms(keywords.get(tier, [])):
-            found_loc = "—"
-            covered = False
-            for loc, text_lower, text_orig in texts_lower:
-                if raw_kw in text_lower:
+            locations: list[str] = []
+            modules: set[str] = set()
+            for loc, text_orig in texts:
+                if term_matches(text_orig, raw_kw):
                     snippet = text_orig[:_SNIPPET_LEN]
-                    found_loc = f"{loc}: \"{snippet}{'...' if len(text_orig) > _SNIPPET_LEN else ''}\""
-                    covered = True
-                    break
-            result[tier].append({"keyword": raw_kw, "covered": covered, "location": found_loc})
+                    locations.append(
+                        f"{loc}: \"{snippet}{'...' if len(text_orig) > _SNIPPET_LEN else ''}\""
+                    )
+                    modules.add(loc.split("[", 1)[0].split(".", 1)[0])
+            result[tier].append(
+                {
+                    "keyword": raw_kw,
+                    "covered": bool(locations),
+                    "location": locations[0] if locations else "—",
+                    "locations": locations,
+                    "module_count": len(modules),
+                }
+            )
 
     return result
 
@@ -93,6 +131,11 @@ def build_keyword_coverage(
 def _tier_label(tier: str) -> str:
     labels = {"P1": "P1 (Critical)", "P2": "P2 (Important)", "P3": "P3 (Nice-to-have)"}
     return labels.get(tier, tier)
+
+
+def _md_cell(value: Any) -> str:
+    """Escape dynamic text for a Markdown table cell."""
+    return str(value).replace("|", r"\|").replace("\r\n", "<br>").replace("\n", "<br>")
 
 
 def format_coverage_section(coverage: dict[str, list[dict[str, Any]]]) -> str:
@@ -113,7 +156,9 @@ def format_coverage_section(coverage: dict[str, list[dict[str, Any]]]) -> str:
         for entry in entries:
             mark = "✓" if entry["covered"] else "✗"
             loc = entry["location"]
-            lines.append(f"| {entry['keyword']} | {mark} | {loc} |")
+            lines.append(
+                f"| {_md_cell(entry['keyword'])} | {mark} | {_md_cell(loc)} |"
+            )
         lines.append("")
 
     if not any_content:
@@ -132,7 +177,9 @@ def format_content_checks_section(checks: list[dict[str, str]]) -> str:
         icon = "✓" if status == "PASS" else "⚠" if status == "WARN" else "✗"
         name = chk.get("name", "")
         detail = chk.get("detail", "")
-        lines.append(f"| {name} | {icon} {status} | {detail} |")
+        lines.append(
+            f"| {_md_cell(name)} | {icon} {status} | {_md_cell(detail)} |"
+        )
     lines.append("")
     return "\n".join(lines)
 
@@ -148,7 +195,9 @@ def _format_pdf_checks_section(pdf_report: dict[str, Any]) -> str:
         name = chk.get("name", "")
         detail_raw = chk.get("detail", {})
         detail = ", ".join(f"{k}={v}" for k, v in detail_raw.items()) if detail_raw else ""
-        lines.append(f"| {name} | {icon} {status} | {detail} |")
+        lines.append(
+            f"| {_md_cell(name)} | {icon} {status} | {_md_cell(detail)} |"
+        )
     lines.append("")
     return "\n".join(lines)
 
@@ -177,7 +226,8 @@ def _format_strategy_summary(coverage: dict[str, list[dict[str, Any]]] | None) -
 
     if gaps_by_tier["P1"]:
         lines.append(
-            f"- Recommendation: 优先在 experience 相关 bullet 中补充未覆盖的 P1 关键词：{', '.join(gaps_by_tier['P1'])}"
+            "- Recommendation: Verify whether existing evidence supports each P1 gap. "
+            f"Add only supported terms; otherwise retain the gap: {', '.join(gaps_by_tier['P1'])}"
         )
     else:
         lines.append("- Recommendation: P1 keywords fully covered — consider reinforcing P2 gaps.")
@@ -239,15 +289,27 @@ def main() -> int:
         print(f"Error: resume file not found: {resume_path}", file=sys.stderr)
         return 1
 
-    resume = load_json_file(resume_path)
+    try:
+        resume = load_json_file(resume_path)
+        validate_resume_content(resume, require_non_empty=True)
+    except (OSError, ValueError) as exc:
+        print(f"Error: invalid resume content: {exc}", file=sys.stderr)
+        return 1
 
     jd_analysis: dict[str, Any] | None = None
+    incomplete_inputs = False
     if args.jd_analysis:
         jd_path = Path(args.jd_analysis).expanduser().resolve()
         if jd_path.exists():
-            jd_analysis = load_json_file(jd_path)
+            try:
+                jd_analysis = load_json_file(jd_path)
+                validate_jd_analysis(jd_analysis)
+            except (OSError, ValueError) as exc:
+                print(f"Error: invalid JD analysis: {exc}", file=sys.stderr)
+                return 1
         else:
             print(f"Warning: jd-analysis file not found: {jd_path}", file=sys.stderr)
+            incomplete_inputs = True
 
     pdf_report: dict[str, Any] | None = None
     if args.pdf:
@@ -258,11 +320,18 @@ def main() -> int:
                 pdf_report = check_pdf_file(pdf_path)
             except Exception as exc:
                 print(f"Warning: PDF check failed: {exc}", file=sys.stderr)
+                incomplete_inputs = True
         else:
             print(f"Warning: PDF not found: {pdf_path}", file=sys.stderr)
+            incomplete_inputs = True
 
+    content_checks = run_all_checks(resume)
     print(generate_report(resume, jd_analysis, pdf_report=pdf_report))
-    return 0
+    content_ok = all(item.get("status") == "PASS" for item in content_checks)
+    pdf_ok = pdf_report is None or pdf_report.get("verdict") == "PASS"
+    if incomplete_inputs:
+        return 1
+    return 0 if content_ok and pdf_ok else 2
 
 
 if __name__ == "__main__":

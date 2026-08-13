@@ -6,10 +6,21 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections import Counter
 from pathlib import Path
 from typing import Any
-from scripts.resume_shared import _DIGIT_RE, collect_bullets, load_json_file
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from scripts.resume_shared import (  # noqa: E402
+    collect_bullets,
+    has_quantified_result,
+    load_json_file,
+    validate_resume_content,
+)
 
 STRONG_VERBS: set[str] = {
     "achieved", "built", "created", "delivered", "designed",
@@ -87,7 +98,7 @@ def check_quantification_ratio(bullets: list[str]) -> dict[str, str]:
     """Check ratio of bullets containing numeric data."""
     if not bullets:
         return {"name": "quantification_ratio", "status": "PASS", "detail": "No bullets to check"}
-    with_numbers = sum(1 for b in bullets if _DIGIT_RE.search(b))
+    with_numbers = sum(1 for b in bullets if has_quantified_result(b))
     ratio = with_numbers / len(bullets)
     if ratio < _QUANT_WARN_THRESHOLD:
         return {
@@ -155,7 +166,7 @@ def check_bullet_line_fill(bullets: list[str]) -> dict[str, str]:
     return {
         "name": "bullet_line_fill",
         "status": "PASS",
-        "detail": "All wrapped bullets have ≥50% last-line fill",
+        "detail": "Estimated wrapped bullets have ≥50% last-line fill",
     }
 
 
@@ -179,6 +190,7 @@ def run_all_checks(resume: dict[str, Any] | Path) -> list[dict[str, str]]:
     """Run all content quality checks on a resume dict or JSON file path."""
     if isinstance(resume, Path):
         resume = load_json_file(resume)
+    validate_resume_content(resume, require_non_empty=True)
     all_bullets = collect_bullets(resume, include_projects=True)
     exp_bullets = collect_bullets(resume, include_projects=False)
 
@@ -199,7 +211,11 @@ def main() -> int:
     args = parser.parse_args()
 
     resume_path = Path(args.resume_json).expanduser().resolve()
-    results = run_all_checks(resume_path)
+    try:
+        results = run_all_checks(resume_path)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        print(f"Error: content quality check failed: {exc}", file=sys.stderr)
+        return 1
 
     if args.json:
         print(json.dumps(results, ensure_ascii=False, indent=2))
@@ -211,7 +227,7 @@ def main() -> int:
             print(f"  {icon} [{r['status']}] {r['name']}: {r['detail']}")
         print(f"\nContent QC: {passed}/{total} checks passed")
 
-    return 0 if all(r["status"] != "FAIL" for r in results) else 1
+    return 0 if all(r["status"] == "PASS" for r in results) else 2
 
 
 if __name__ == "__main__":

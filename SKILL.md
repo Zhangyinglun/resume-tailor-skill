@@ -1,131 +1,95 @@
 ---
 name: resume-tailor
-description: Use when user provides JD and existing resume, expecting job-targeted optimization, ATS keyword alignment, language polishing, and delivery of a single-page A4 PDF resume.
+description: Tailor, review, regenerate, and validate resumes against a job description or target role. Use when the user provides a resume, CV, JD, target direction, or an existing resume-working.json and wants truthful ATS keyword alignment, evidence-based rewriting, content compression, language polishing, or a verified single-page A4 PDF.
 ---
 
-# Resume Tailor Skill
+# Resume Tailor
 
-## Core Objectives
-- **ATS Hit Rate**: Cover high-frequency JD keywords while maintaining natural expression.
-- **Job Relevance**: Prioritize evidence chains and quantified results that best match the position.
-- **Delivery Quality**: Output A4 PDF with extractable text and pass format quality checks.
+## Guardrails
 
-## Inviolable Principles
-- **No Fabrication**: Only rewrite, rearrange, compress—no fictional experience/tech/data.
-- **Volume Gate Before Generation**: Compress content to single-page target before generating PDF.
-- **Autonomous Decision Making**: Agent autonomously makes all optimization decisions (keyword alignment, content prioritization, compression, layout tuning) without asking for confirmation.
-- **Transparent Reporting**: All decisions are recorded in the final summary report for user post-hoc review.
-- **ATS Friendly**: No table-based main layout, no images replacing body text, no key info in headers/footers.
-- **Fixed A4 + Single Page**: Default delivery 210mm x 297mm, 1 page.
-- **PDF Only Delivery**: Final output is PDF only.
-- **Read `vendor/skills/pdf/SKILL.md` before PDF actions**: Execute before initial generation, minor regeneration, or final export.
-- **Auto-fit Scope**: Automatic tuning may adjust layout parameters only; it must not rewrite resume content unless user explicitly asks.
+- Preserve facts. Rewrite, reorder, merge, or remove content; never invent experience, tools, ownership, dates, or metrics.
+- Use quantified results only when the source resume or user supplies the number. Otherwise keep the claim qualitative and record the missing evidence as a clarification item.
+- Keep automatic fitting limited to font, spacing, and margins. Never let layout tuning rewrite content.
+- Deliver an ATS-readable, extractable-text, single-page A4 PDF.
+- Preserve the last accepted PDF whenever a new candidate fails quality checks.
 
-## Stateless Boundary (Mandatory)
-- `resume-tailor` skill directory can only store "rules + templates + scripts + references".
-- No personalized cache (user preferences, historical JDs, contact info, resume samples) in skill directory.
-- Unified directories (relative to workspace):
-  - `resume_output/`: Latest PDF
-  - `resume_output/backup/`: Historical PDF backups
-  - `cache/user-profile.md`: Long-term preference cache
-  - `cache/resume-working.json`: Current session resume body
-  - `cache/jd-analysis.json`: JD analysis results (keywords, alignment, optimization actions)
+## Resolve Paths First
 
-## Minimum Execution Flow
+Set these logical paths before running commands:
 
-### Phase A – Initialize
-1. Run `scripts/resume_cache_manager.py reset`.
-2. Run `template-check`; if template exists, run `template-use` to load into working cache. If not, run `template-init` with user-provided resume, then `template-use`.
+- `RESUME_TAILOR_DIR`: the directory containing this `SKILL.md`.
+- `USER_WORKSPACE`: the user's active resume workspace, separate from the installed Skill directory.
 
-### Phase B – Analyze & Draft
-1. **JD Diagnosis**: Analyze JD (or target direction), produce P1/P2/P3 tier classification with gap report, and persist results to `cache/jd-analysis.json` via `jd-save`.
-2. **Apply All Modifications**: Apply optimization decisions using standard action codes (`LEAD_WITH`, `EMPHASIZE`, `QUANTIFY`, `DOWNPLAY`, `MERGE`, `REWORD`) as defined in `references/optimization-actions.md`. Document each action with target, code, and reason. Then run `update` to persist.
+Run scripts by absolute path from `RESUME_TAILOR_DIR`. Pass `--workspace USER_WORKSPACE` to cache commands. Write personalized data only under `USER_WORKSPACE/cache/` and `USER_WORKSPACE/resume_output/`.
 
-### Phase C – Compress & Quality
-1. **Volume Gate**: Score bullets via `score_all_bullets()` against `cache/jd-analysis.json`, then check working cache against volume thresholds; if compression needed, prioritize removing lowest-scored bullets first, then `update`.
-2. **QA & De-AI**: Read `vendor/skills/humanizer/SKILL.md` for natural expression guidance, then run structure/quantification/ATS checks.
+## Workflow
 
-### Phase D – Generate & Deliver
-1. **PDF Generation**: Read `vendor/skills/pdf/SKILL.md`, then generate with `--auto-fit`. If QC fails, retry up to 3 times with escalating parameters.
-2. **Quality Report**: Run `python3 -m scripts.generate_quality_report --resume cache/resume-working.json --jd-analysis cache/jd-analysis.json --pdf resume_output/resume.pdf` and embed the stdout output verbatim in the reply.
-3. **Summary Report**: Output a structured summary report covering all decisions made. **Must include the full absolute path of the generated PDF file.**
-4. **Wrap-up**: Update `cache/user-profile.md`, retain working cache.
+### 1. Initialize Source Data
 
-Complete checklist and thresholds in `references/execution-checklist.md`.
+1. If the user explicitly requests regeneration from an existing `resume-working.json`, keep that cache and skip the remaining initialization steps. Otherwise run `resume_cache_manager.py reset --workspace USER_WORKSPACE`.
+2. For `.pdf`, `.docx`, `.txt`, or `.md` input, run `extract_resume_text.py INPUT --output USER_WORKSPACE/cache/source-resume.txt`.
+3. Run `template-check --workspace USER_WORKSPACE`.
+4. If `cache/base-resume.json` exists, run `template-use --workspace USER_WORKSPACE`. Otherwise run `template-init --workspace USER_WORKSPACE` with the extracted text, then run `template-use` with the same workspace.
 
-## Summary Report Format
+### 2. Analyze the Target
 
-After PDF delivery, output the following report:
+1. Analyze the JD or target direction into P1 critical, P2 important, and P3 optional terms.
+2. Separate matched evidence, transferable evidence, and unsupported gaps.
+3. Save the result through `jd-save` to `cache/jd-analysis.json`.
+4. Read `references/ats-keywords-strategy.md` when selecting or placing keywords.
 
-```
-## Resume Tailor Summary Report
+### 3. Tailor Content
 
-### Job Analysis (from cache/jd-analysis.json)
-- Position: {title}
-- P1 (Critical): {keywords}
-- P2 (Important): {keywords}
-- P3 (Nice-to-have): {keywords}
-- Matched: {aligned keywords}
-- Gaps: {gap keywords with strategies}
+1. Apply `LEAD_WITH`, `EMPHASIZE`, `QUANTIFY`, `DOWNPLAY`, `MERGE`, and `REWORD` as defined in `references/optimization-actions.md`.
+2. Apply a keyword only where the resume contains supporting evidence.
+3. Keep unsupported requirements in the gap report instead of forcing them into the resume.
+4. Save the complete JSON with `resume_cache_manager.py update`.
 
-### Modifications Applied
-- Actions applied: {list of action_code → target, e.g., EMPHASIZE → experience[0].bullets[2]}
-- Keywords added: {list}
-- Content reordered: {yes/no, brief description}
-- Content removed: {list of removed items with reasons}
+### 4. Compress and Check Language
 
-### Volume & Compression
-- Before: {word count} words / {line count} lines / {bullet count} bullets
-- After: {word count} words / {line count} lines / {bullet count} bullets
-- Compression actions: {list}
+1. Score bullets against `cache/jd-analysis.json`; remove or merge the lowest-value evidence first when content is too long.
+2. Follow `references/execution-checklist.md` for volume thresholds.
+3. Read `references/resume-language-quality.md` and remove vague, inflated, or repetitive phrasing without changing responsibility boundaries.
+4. Run `check_content_quality.py`. Treat exit code `2` as a warning that requires review, not as a successful quality pass.
 
-### QA Results
-- Humanizer: {applied / not needed}
-- Structure check: {pass/fail + details}
-- ATS keyword coverage: {percentage or list}
-- PDF QC: {pass/fail + checks summary}
+### 5. Generate Safely
 
-### Deliverable
-- PDF path: {full absolute path of generated PDF}
+Run `generate_final_resume.py` with `--auto-fit`, explicit input, and explicit output directory. The generator stages and checks the PDF before publishing it.
 
-### Action Required
-- Review contact info and sensitive data in the generated PDF.
-- {Any failed QC checks or caveats, if applicable}
-```
+- Exit `0`: QA passed; the prior root PDF was archived and the new PDF was published.
+- Exit `2`: QA failed; prior PDFs were preserved and the rejected candidate was saved under `resume_output/rejected/`.
+- Exit `1`: generation or validation failed.
 
-## Fixed Template Baseline (Logical Structure)
-Always organize content in the following module order:
+Revise only the reported issue and retry up to three times. Never delete or overwrite an accepted PDF to make a failing candidate appear successful.
 
-```markdown
+Before delivery, perform visual PDF QA. When the host provides a PDF Skill (Codex: `pdf:pdf`), load and follow it to render and inspect every final page. Otherwise use the fallback in `references/execution-checklist.md`. Do not report the PDF as visually verified unless the rendered pages were actually inspected.
+
+### 6. Report and Retain
+
+1. Run `python -m scripts.generate_quality_report` from `RESUME_TAILOR_DIR`, or run the script by absolute path.
+2. Report the absolute PDF path, target role, material content changes, removed content, evidence gaps, content warnings, programmatic PDF QA verdict, and visual PDF QA verdict.
+3. Retain `cache/base-resume.json`, `cache/resume-working.json`, and `cache/user-profile.md` for later iterations.
+
+## Output Structure
+
+Use this stable ATS order:
+
+```text
 Header
 Summary
 Professional Experience
+Projects (when relevant)
 Technical Skills
+Certifications or Awards (when relevant)
 Education
 ```
 
-## Script Responsibility Boundaries
-- `scripts/resume_cache_manager.py`: Manage `cache/resume-working.json` reset/init/update/show (`cleanup` only manual as needed), `cache/base-resume.json` template-init/template-use/template-show/template-check, and `cache/jd-analysis.json` jd-save/jd-show.
-- `scripts/generate_final_resume.py`: Accept `--input-json`, optionally `--auto-fit`, and generate final PDF.
-- `scripts/generate_quality_report.py`: Print quality report (Markdown) to stdout — no files written. Covers format compliance (PDF), content quality checks, keyword→bullet coverage matrix, and strategy summary.
-- `scripts/check_pdf_quality.py`: Perform general format and text quality checks.
-- `scripts/check_content_quality.py`: Content-level quality checks on resume JSON — bullet scoring, verb strength, quantification rate.
-- `scripts/resume_shared.py`: Shared utilities (validation, JSON I/O, parsing helpers) consumed by other scripts.
-- `templates/modern_resume_template.py`: Only responsible for PDF layout and export.
+## References
 
-## Bundled Skills (vendor/)
-
-All dependent skills are bundled in the `vendor/skills/` directory — no separate installation required.
-
-- `vendor/skills/pdf/SKILL.md`: PDF read/generate guide — read before any PDF action
-- `vendor/skills/docx/SKILL.md`: DOCX read/edit guide — read before reading `.docx` files
-- `vendor/skills/humanizer/SKILL.md`: AI trace removal guide — read before humanizing text
-
-## Reference Materials
-- Full process checklist and thresholds: `references/execution-checklist.md`
-- ATS strategy: `references/ats-keywords-strategy.md`
-- Prompt templates: `references/prompt-recipes.md`
-- Profile cache template: `references/profile-cache-template.md`
-- Working cache structure: `references/resume-working-schema.md`
-- Template instructions: `templates/README.md`
-- Optimization action codes: `references/optimization-actions.md`
+- `references/execution-checklist.md`: commands, thresholds, retry rules, and special cases.
+- `references/ats-keywords-strategy.md`: evidence-based keyword selection and matching.
+- `references/optimization-actions.md`: modification action codes.
+- `references/resume-language-quality.md`: concise resume-specific language checks.
+- `references/resume-working-schema.md`: working JSON schema.
+- `references/profile-cache-template.md`: optional preference cache structure.
+- `references/prompt-recipes.md`: example invocation prompts.

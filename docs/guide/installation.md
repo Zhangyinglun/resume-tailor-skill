@@ -1,50 +1,28 @@
 # Installation Guide
 
-## Python Dependencies
+## Requirements
+
+Use Python 3.9 or newer:
 
 ```bash
 python3 -m pip install -r requirements.txt
-```
-
-On Windows, use `py -3` if `python3` is unavailable. For direct script calls in PowerShell, prefer `$env:PYTHONPATH='.'; py -3 ...`.
-
-## Bundled Skills
-
-This package already includes its dependency skills under `vendor/skills/`:
-
-- `vendor/skills/pdf/SKILL.md`
-- `vendor/skills/docx/SKILL.md`
-- `vendor/skills/humanizer/SKILL.md`
-
-Do not clone external copies of those skills for this repository layout.
-
-## Agent Setup
-
-Use the repository itself as the canonical `resume-tailor` skill package.
-
-### Codex
-
-- Repo mode: open the repository and let Codex read `AGENTS.md`.
-- Skill mode: place this repository at `~/.agents/skills/resume-tailor/`.
-
-### Claude Code
-
-- Open the repository checkout directly.
-- Claude-specific instructions live in `CLAUDE.md`.
-- Helper commands live in `.claude/commands/`.
-
-### OpenCode
-
-- Preferred location: `~/.config/opencode/skills/resume-tailor/`
-- Helper command: `.opencode/command/install-skill-deps.md`
-- Install manifest: `install/agent-install.yaml`
-
-## Smoke Check
-
-Run the package smoke check after installation:
-
-```bash
 python3 scripts/check_agent_platform_support.py
 ```
 
-That script verifies required entry files, bundled dependency skills, and basic command availability without relying on repository test files.
+The verification command checks Python, `reportlab`, `pdfplumber`, required package files, and whether script entry points work outside the repository directory. It exits nonzero when the baseline fails.
+
+## Agent Setup
+
+- Codex: copy the repository to `$CODEX_HOME/skills/resume-tailor/`, normally `~/.codex/skills/resume-tailor/`.
+- Claude Code: open the repository to load `CLAUDE.md`; use a separate personal resume workspace.
+- OpenCode: copy the repository to `~/.config/opencode/skills/resume-tailor/`.
+
+No dependency Skills are vendored. PDF generation and text extraction use the open-source Python packages declared in `requirements.txt`.
+
+## Development Validation
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+ruff check scripts templates tests
+python3 -m unittest discover -s tests -v
+```

@@ -1,16 +1,3 @@
 # Check Resume Tailor Setup
 
-Use this project command to verify that the repository is ready for `resume-tailor` work.
-
-## Checks
-
-1. Confirm Python dependencies are installed from `requirements.txt`.
-2. Confirm bundled skills exist:
-   - `vendor/skills/pdf/SKILL.md`
-   - `vendor/skills/docx/SKILL.md`
-   - `vendor/skills/humanizer/SKILL.md`
-3. Confirm the main workflow docs exist:
-   - `SKILL.md`
-   - `AGENTS.md`
-   - `CLAUDE.md`
-4. Report whether the workspace is ready and list any missing pieces with exact paths.
+Run `scripts/check_agent_platform_support.py` from the repository. Confirm that required files, Python dependencies, and external-workspace entry points pass. Report exact failures and stop if the baseline status is `fail`.

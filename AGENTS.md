@@ -1,66 +1,36 @@
 # AGENTS.md
 
-Codex-facing repository instructions for the distributable `resume-tailor` skill.
+Codex-facing instructions for the distributable `resume-tailor` Skill package.
 
-## Repository Purpose
+## Repository Boundary
 
-This repository is the skill package itself, not a user workspace. Keep only reusable rules, scripts, templates, and bundled dependency skills in versioned files.
+- Treat this repository as the Skill package, not a personal resume workspace.
+- Keep versioned files limited to reusable rules, scripts, templates, references, metadata, and tests.
+- Write personal cache and generated PDFs only to the user workspace passed to the scripts.
+- Preserve accepted PDFs when a new candidate fails QA.
+- Keep `--auto-fit` limited to layout parameters.
 
-The core workflow is:
+## Start Here
 
 1. Read `SKILL.md`.
-2. Use `scripts/resume_cache_manager.py` to manage workspace cache.
-3. Generate the final PDF with `scripts/generate_final_resume.py`.
-4. Validate output with `scripts/check_pdf_quality.py`.
-5. Read bundled dependency skills from `vendor/skills/` when the workflow requires them.
+2. Resolve the repository directory as `RESUME_TAILOR_DIR` and the user's active directory as `USER_WORKSPACE`.
+3. Use `scripts/extract_resume_text.py` for PDF, DOCX, Markdown, or text input.
+4. Manage cache through `scripts/resume_cache_manager.py` with an explicit `--workspace`.
+5. Generate through `scripts/generate_final_resume.py` and validate through the quality scripts.
 
-## Keep These Boundaries
-
-- The skill directory must remain stateless.
-- User-specific runtime data belongs in workspace folders such as `cache/` and `resume_output/`.
-- `--auto-fit` may change layout parameters only. It must not rewrite resume content.
-- PDF output must stay ATS-friendly and single-page A4.
-- Use `pathlib.Path` for path handling and `encoding="utf-8"` for text I/O.
-
-## Main Entry Points
-
-- `SKILL.md`: workflow and behavior contract
-- `README.md`: package overview
-- `CLAUDE.md`: Claude Code instructions
-- `.claude/commands/`: Claude helper commands
-- `.opencode/command/`: OpenCode helper command
-- `install/agent-install.yaml`: OpenCode-style install manifest
-
-## Core Commands
+## Development Checks
 
 ```bash
-python3 -m pip install -r requirements.txt
-python3 scripts/resume_cache_manager.py reset
-python3 scripts/resume_cache_manager.py template-check --workspace .
-python3 scripts/resume_cache_manager.py template-use --workspace .
-python3 scripts/generate_final_resume.py --input-json cache/resume-working.json --output-file resume.pdf --output-dir resume_output --auto-fit
-python3 scripts/check_pdf_quality.py resume_output/resume.pdf
+python3 -m pip install -r requirements-dev.txt
 python3 scripts/check_agent_platform_support.py
+ruff check scripts templates tests
+python3 -m unittest discover -s tests -v
 ```
-
-On Windows PowerShell, prefer `$env:PYTHONPATH='.'; py -3 ...` for direct script calls.
 
 ## Editing Rules
 
-- Keep imports ordered as stdlib, third-party, then local modules.
-- Add type annotations to new or changed functions.
-- Use `argparse` for CLI scripts and `main() -> int` entry points.
-- Raise descriptive `ValueError` or `FileNotFoundError` for validation and missing-path failures.
-- Avoid unrelated reformatting.
-
-## Recommended Reading Order
-
-1. `README.md`
-2. `SKILL.md`
-3. `scripts/resume_shared.py`
-4. `scripts/resume_cache_manager.py`
-5. `scripts/generate_final_resume.py`
-6. `scripts/check_pdf_quality.py`
-7. `scripts/check_content_quality.py`
-8. `templates/design_tokens.py`
-9. `templates/modern_resume_template.py`
+- Use `pathlib.Path` and UTF-8 text I/O.
+- Keep imports ordered as standard library, third-party, then local modules.
+- Add type annotations to changed functions and use `main() -> int` for CLI entry points.
+- Raise descriptive validation or missing-path errors.
+- Avoid unrelated formatting.

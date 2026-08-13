@@ -2,95 +2,74 @@
 
 [中文说明](README.zh-CN.md)
 
-A distributable **AI skill** for Claude Code, Codex, and OpenCode. Give it your resume + a JD — it delivers an ATS-optimized single-page A4 PDF.
+A personal AI Skill for truthfully tailoring a resume to a job description or target role and delivering a verified single-page A4 PDF.
 
----
+## Install
 
-## 1-Minute Quickstart
-
-### Step 1 — Install
+Requires Python 3.9 or newer.
 
 ```bash
-git clone https://github.com/your-org/resume-tailor-skill
+git clone https://github.com/Zhangyinglun/resume-tailor-skill.git
 cd resume-tailor-skill
 python3 -m pip install -r requirements.txt
-```
-
-### Step 2 — Register with your AI agent
-
-| Platform | What to do |
-|---|---|
-| **Claude Code** | Open this repo in Claude Code. Done — `CLAUDE.md` auto-loads. |
-| **Codex** | Copy repo to `~/.agents/skills/resume-tailor/` |
-| **OpenCode** | Copy repo to `~/.config/opencode/skills/resume-tailor/` |
-
-### Step 3 — Use it
-
-Paste your JD and resume into the chat and say:
-
-```
-Tailor my resume for this JD and output a single-page PDF.
-```
-
-The agent handles everything: keyword alignment, content rewrite, layout, and PDF delivery.
-
----
-
-## How It Works
-
-```
-You provide: existing resume + target JD
-      │
-      ▼
-[A] Initialize workspace cache
-      │
-      ▼
-[B] Analyze JD → rewrite bullets (no fabrication)
-      │
-      ▼
-[C] Volume gate → compress to 1 page → humanize language
-      │
-      ▼
-[D] Generate PDF → quality check → deliver with summary report
-```
-
-The skill is **stateless** — your data stays in your workspace's `cache/` and `resume_output/` folders, never inside the skill package.
-
----
-
-## Repository Layout
-
-```
-resume-tailor/
-├── SKILL.md                   # Main skill definition (agent reads this)
-├── CLAUDE.md                  # Claude Code auto-load config
-├── AGENTS.md                  # Codex entry point
-├── requirements.txt
-├── scripts/                   # resume_cache_manager.py, generate_final_resume.py, ...
-├── templates/                 # .docx base template (Calibri / Helvetica fallback)
-├── references/                # Optimization action codes, schema notes, prompt helpers
-├── vendor/skills/             # Bundled dependencies: pdf, docx, humanizer
-├── .claude/commands/          # /resume-tailor and /check-resume-tailor-setup
-├── .opencode/command/
-└── docs/guide/installation.md
-```
-
----
-
-## Verify Installation
-
-```bash
 python3 scripts/check_agent_platform_support.py
 ```
 
-Optional lint:
+Register the repository with your agent:
 
-## Key Constraints
+| Platform | Location or workflow |
+|---|---|
+| Codex | Copy to `$CODEX_HOME/skills/resume-tailor/`; the default is `~/.codex/skills/resume-tailor/`. |
+| Claude Code | Open this repository so `CLAUDE.md` is loaded. Use a separate directory as the personal resume workspace. |
+| OpenCode | Copy to `~/.config/opencode/skills/resume-tailor/`. |
 
-- **No fabrication** — only rewrites and rearranges what you actually have.
-- **`--auto-fit`** only adjusts layout parameters, never rewrites content.
-- Output is always A4, one page, extractable-text PDF.
+## Use
+
+Provide an existing resume plus a JD or target direction, then ask:
+
+```text
+Use $resume-tailor to tailor my resume for this role and generate a verified single-page PDF.
+```
+
+The Skill keeps personal data in the active user workspace:
+
+```text
+cache/base-resume.json
+cache/resume-working.json
+cache/jd-analysis.json
+cache/user-profile.md
+resume_output/
+```
+
+Run bundled scripts from the installed Skill directory while passing the user workspace explicitly. The package directory itself remains free of personal runtime data.
+
+## Safety Model
+
+- Never fabricate experience, ownership, tools, dates, or metrics.
+- Auto-fit changes layout only.
+- Generate into a staging directory and publish only after PDF QA passes.
+- Preserve accepted PDFs when a new candidate fails; rejected candidates go to `resume_output/rejected/`.
+- Produce A4, one-page, extractable-text output by default.
+
+## Development Checks
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+ruff check scripts templates tests
+python3 -m unittest discover -s tests -v
+python3 /path/to/skill-creator/scripts/quick_validate.py .
+```
+
+Core package layout:
+
+```text
+SKILL.md                 Agent workflow
+agents/openai.yaml       Codex UI metadata
+scripts/                 Cache, extraction, quality, and PDF tools
+templates/               ReportLab PDF layout
+references/              Conditional workflow guidance
+```
 
 ## License
 
-MIT. See `LICENSE`.
+MIT. Third-party Python packages are installed separately through `requirements.txt` and are not vendored in this repository.

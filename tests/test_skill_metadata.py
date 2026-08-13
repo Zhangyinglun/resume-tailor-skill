@@ -1,0 +1,50 @@
+from __future__ import annotations
+
+import re
+import unittest
+from pathlib import Path
+
+import yaml
+
+
+class SkillMetadataTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.repo_root = Path(__file__).resolve().parent.parent
+
+    def test_skill_frontmatter_and_references(self) -> None:
+        skill_path = self.repo_root / "SKILL.md"
+        content = skill_path.read_text(encoding="utf-8")
+        parts = re.split(r"^---\s*$", content, maxsplit=2, flags=re.MULTILINE)
+        self.assertGreaterEqual(len(parts), 3)
+        frontmatter = yaml.safe_load(parts[1])
+        self.assertEqual(set(frontmatter), {"name", "description"})
+        self.assertEqual(frontmatter["name"], "resume-tailor")
+        self.assertLessEqual(len(content.splitlines()), 500)
+
+        for relative_path in re.findall(r"`((?:references|scripts)/[^`]+)`", content):
+            path_without_placeholder = relative_path.split(" ", 1)[0]
+            self.assertTrue(
+                (self.repo_root / path_without_placeholder).exists(),
+                path_without_placeholder,
+            )
+
+    def test_openai_metadata_matches_skill(self) -> None:
+        metadata = yaml.safe_load(
+            (self.repo_root / "agents" / "openai.yaml").read_text(encoding="utf-8")
+        )
+        interface = metadata["interface"]
+        self.assertEqual(interface["display_name"], "Resume Tailor")
+        self.assertIn("$resume-tailor", interface["default_prompt"])
+        self.assertGreaterEqual(len(interface["short_description"]), 25)
+        self.assertLessEqual(len(interface["short_description"]), 64)
+
+    def test_restricted_vendor_content_is_not_bundled(self) -> None:
+        vendor_root = self.repo_root / "vendor"
+        bundled_files = [
+            path for path in vendor_root.rglob("*") if path.is_file()
+        ] if vendor_root.exists() else []
+        self.assertEqual(bundled_files, [])
+
+
+if __name__ == "__main__":
+    unittest.main()

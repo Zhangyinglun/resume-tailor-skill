@@ -8,11 +8,15 @@ import argparse
 import json
 import re
 import sys
-from pathlib import Path
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
-from scripts.resume_shared import (
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from scripts.resume_shared import (  # noqa: E402
     load_json_file,
     parse_pipe_delimited_items,
     validate_resume_content,
@@ -70,6 +74,9 @@ def validate_jd_analysis(payload: dict[str, Any]) -> None:
     if missing:
         raise ValueError(f"JD analysis missing required fields: {', '.join(missing)}")
 
+    if not isinstance(payload["position"], str) or not payload["position"].strip():
+        raise ValueError("`position` must be a non-empty string.")
+
     kw = payload["keywords"]
     if not isinstance(kw, dict):
         raise ValueError("`keywords` must be an object.")
@@ -79,6 +86,18 @@ def validate_jd_analysis(payload: dict[str, Any]) -> None:
     for tier in _JD_KEYWORDS_REQUIRED:
         if not isinstance(kw[tier], list):
             raise ValueError(f"keywords.{tier} must be an array.")
+        for index, item in enumerate(kw[tier]):
+            valid_string = isinstance(item, str) and bool(item.strip())
+            valid_object = (
+                isinstance(item, dict)
+                and isinstance(item.get("term"), str)
+                and bool(item["term"].strip())
+            )
+            if not (valid_string or valid_object):
+                raise ValueError(
+                    f"keywords.{tier}[{index}] must be a non-empty string "
+                    "or an object with a non-empty `term`."
+                )
 
     align = payload["alignment"]
     if not isinstance(align, dict):
@@ -98,7 +117,9 @@ def save_jd_analysis(workspace: Path, payload: dict[str, Any]) -> Path:
 
 def read_jd_analysis(workspace: Path) -> dict[str, Any]:
     """Read JD analysis JSON."""
-    return load_json_file(get_jd_analysis_path(workspace))
+    payload = load_json_file(get_jd_analysis_path(workspace))
+    validate_jd_analysis(payload)
+    return payload
 
 
 def reset_cache_on_start(workspace: Path) -> bool:
@@ -360,7 +381,9 @@ def init_base_template_from_text(workspace: Path, raw_text: str) -> Path:
 
 
 def init_working_from_template(workspace: Path) -> Path:
-    return write_json_file(get_cache_path(workspace), load_json_file(get_base_template_path(workspace)))
+    payload = load_json_file(get_base_template_path(workspace))
+    validate_resume_content(payload)
+    return write_json_file(get_cache_path(workspace), payload)
 
 
 def read_base_template_json(workspace: Path) -> dict[str, Any]:
@@ -466,6 +489,12 @@ def _run_json_action(action: Callable[..., Any], *args: Any) -> int:
 def main() -> int:
     args = _parse_args()
     workspace = Path(args.workspace).expanduser().resolve()
+    if workspace == PROJECT_ROOT or PROJECT_ROOT in workspace.parents:
+        print(
+            "Error: Personal resume data must use a workspace outside the Skill package.",
+            file=sys.stderr,
+        )
+        return 1
 
     if args.action in {"init", "update", "template-init", "jd-save"} and not args.input:
         print("Error: init/update/template-init/jd-save requires --input parameter", file=sys.stderr)

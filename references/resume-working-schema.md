@@ -60,4 +60,7 @@ Description:
 - `experience` uses company/title/location/dates/bullets structure.
 - `education` uses school/degree/dates structure.
 - Optional keys: `projects`, `certifications`, `awards`.
+- `name`, `contact`, `summary`, and all nested text fields must be strings.
+- Every optional section must be an array of objects when present.
+- User text may contain characters such as `&`, `<`, and `>`; the renderer escapes them before PDF markup is applied.
 - Do not insert analysis text unrelated to resume in cache file.

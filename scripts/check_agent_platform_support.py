@@ -9,9 +9,10 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 EXPECTED_ASSETS = (
     Path("AGENTS.md"),
@@ -20,14 +21,20 @@ EXPECTED_ASSETS = (
     Path(".claude/commands/resume-tailor.md"),
     Path(".claude/commands/check-resume-tailor-setup.md"),
     Path(".opencode/command/install-skill-deps.md"),
+    Path("agents/openai.yaml"),
     Path("install/agent-install.yaml"),
-    Path("vendor/skills/pdf/SKILL.md"),
-    Path("vendor/skills/docx/SKILL.md"),
-    Path("vendor/skills/humanizer/SKILL.md"),
+    Path("requirements.txt"),
+    Path("scripts/extract_resume_text.py"),
+    Path("scripts/resume_cache_manager.py"),
+    Path("scripts/generate_final_resume.py"),
+    Path("scripts/check_pdf_quality.py"),
+    Path("scripts/check_content_quality.py"),
+    Path("scripts/generate_quality_report.py"),
+    Path("references/resume-language-quality.md"),
 )
 
-Runner = Callable[[list[str], Path, dict[str, str] | None], dict[str, Any]]
-Which = Callable[[str], str | None]
+Runner = Callable[[list[str], Path, Optional[dict[str, str]]], dict[str, Any]]
+Which = Callable[[str], Optional[str]]
 
 
 def parse_args() -> argparse.Namespace:
@@ -125,7 +132,7 @@ def _command_check(
 
 
 def _baseline_checks(repo_root: Path, runner: Runner) -> dict[str, Any]:
-    checks = [
+    checks: list[dict[str, Any]] = [
         _asset_check(repo_root),
         _command_check(
             "python_version",
@@ -134,17 +141,14 @@ def _baseline_checks(repo_root: Path, runner: Runner) -> dict[str, Any]:
             runner,
         ),
         _command_check(
-            "template_check",
+            "python_dependencies",
             [
                 sys.executable,
-                "scripts/resume_cache_manager.py",
-                "template-check",
-                "--workspace",
-                ".",
+                "-c",
+                "import reportlab, pdfplumber; print('reportlab and pdfplumber available')",
             ],
             repo_root,
             runner,
-            env={"PYTHONPATH": str(repo_root)},
         ),
         _command_check(
             "platform_script_help",
@@ -153,6 +157,29 @@ def _baseline_checks(repo_root: Path, runner: Runner) -> dict[str, Any]:
             runner,
         ),
     ]
+
+    with tempfile.TemporaryDirectory(prefix="resume-tailor-smoke-") as temp_dir:
+        external_cwd = Path(temp_dir)
+        for script_name in (
+            "resume_cache_manager.py",
+            "check_content_quality.py",
+            "generate_quality_report.py",
+            "extract_resume_text.py",
+            "generate_final_resume.py",
+            "check_pdf_quality.py",
+        ):
+            checks.append(
+                _command_check(
+                    f"external_entrypoint_{Path(script_name).stem}",
+                    [
+                        sys.executable,
+                        str(repo_root / "scripts" / script_name),
+                        "--help",
+                    ],
+                    external_cwd,
+                    runner,
+                )
+            )
     return {
         "status": "pass" if all(check["passed"] for check in checks) else "fail",
         "checks": checks,
@@ -164,8 +191,8 @@ def _codex_result(repo_root: Path, runner: Runner, which: Which) -> dict[str, An
     manual_steps = [
         "Open the repository in the Codex desktop app.",
         "Ask: '这个仓库的 agent 指令文件是什么？resume-tailor 的工作流主文档是什么？'",
-        "Confirm the answer references AGENTS.md, SKILL.md, and vendor/skills/.",
-        "Copy the repository to ~/.agents/skills/resume-tailor/ and repeat with a JD-driven resume prompt.",
+        "Confirm the answer references AGENTS.md, SKILL.md, scripts/, and references/.",
+        "Copy the repository to $CODEX_HOME/skills/resume-tailor/ (normally ~/.codex/skills/resume-tailor/) and repeat with a JD-driven resume prompt.",
     ]
     if not executable:
         return {
@@ -199,13 +226,13 @@ def _codex_result(repo_root: Path, runner: Runner, which: Which) -> dict[str, An
 def _claude_result(repo_root: Path, runner: Runner, which: Which) -> dict[str, Any]:
     executable = which("claude")
     prompt = (
-        "Which repository files define your workflow here, and where do bundled "
-        "dependency skills live?"
+        "Which repository files define your workflow here, and which local scripts "
+        "handle resume extraction and PDF generation?"
     )
     manual_steps = [
         "Open the repository in Claude Code.",
         "Confirm the project command list includes resume-tailor and check-resume-tailor-setup.",
-        "Run check-resume-tailor-setup and verify it checks vendor/skills/pdf, docx, and humanizer.",
+        "Run check-resume-tailor-setup and verify it checks Python dependencies and external entry points.",
     ]
     if not executable:
         return {
@@ -218,19 +245,19 @@ def _claude_result(repo_root: Path, runner: Runner, which: Which) -> dict[str, A
     probe = runner(["claude", "-p", prompt], repo_root, None)
     combined = " ".join([probe["stdout"], probe["stderr"]]).strip()
     discovery_passed = _contains_all(combined, ["CLAUDE.md", "SKILL.md"])
-    dependency_source_passed = _contains_all(combined, ["vendor/skills"])
+    local_scripts_passed = _contains_all(combined, ["scripts"])
     status = (
         "pass"
-        if probe["returncode"] == 0 and discovery_passed and dependency_source_passed
+        if probe["returncode"] == 0 and discovery_passed and local_scripts_passed
         else "blocked"
     )
 
     return {
         "status": status,
         "summary": (
-            "Claude Code CLI detected repository workflow files and bundled dependency source."
+            "Claude Code CLI detected repository workflow files and local script entry points."
             if status == "pass"
-            else "Claude Code CLI probe did not confirm workflow file discovery and bundled dependency source."
+            else "Claude Code CLI probe did not confirm workflow file discovery and local script entry points."
         ),
         "command_available": True,
         "probe_command": f'claude -p "{prompt}"',
@@ -238,7 +265,7 @@ def _claude_result(repo_root: Path, runner: Runner, which: Which) -> dict[str, A
         "probe_stdout": probe["stdout"],
         "probe_stderr": probe["stderr"],
         "discovery_passed": discovery_passed,
-        "dependency_source_passed": dependency_source_passed,
+        "local_scripts_passed": local_scripts_passed,
         "manual_steps": manual_steps,
     }
 
@@ -250,12 +277,12 @@ def _opencode_result(repo_root: Path, runner: Runner, which: Which) -> dict[str,
     )
     workflow_prompt = (
         "I have a JD and an existing resume. Which workflow should you use here, "
-        "and where do the dependency skills come from?"
+        "and which local scripts handle extraction and PDF generation?"
     )
     manual_steps = [
         "Install or copy the repository into ~/.config/opencode/skills/resume-tailor/ if the local setup does not already load it.",
         "Run the same two prompts in an interactive OpenCode session.",
-        "Confirm the response uses resume-tailor and references vendor/skills/ instead of cloning upstream dependency skills.",
+        "Confirm the response uses resume-tailor and references local scripts/ instead of cloning dependency Skills.",
     ]
     if not executable:
         return {
@@ -271,7 +298,7 @@ def _opencode_result(repo_root: Path, runner: Runner, which: Which) -> dict[str,
     workflow_text = " ".join([workflow["stdout"], workflow["stderr"]]).strip()
     discovery_passed = _contains_all(discovery_text, ["resume-tailor"])
     workflow_passed = _contains_all(workflow_text, ["resume-tailor"])
-    dependency_source_passed = _contains_all(workflow_text, ["vendor/skills"])
+    local_scripts_passed = _contains_all(workflow_text, ["scripts"])
     status = (
         "pass"
         if (
@@ -279,7 +306,7 @@ def _opencode_result(repo_root: Path, runner: Runner, which: Which) -> dict[str,
             and workflow["returncode"] == 0
             and discovery_passed
             and workflow_passed
-            and dependency_source_passed
+            and local_scripts_passed
         )
         else "blocked"
     )
@@ -287,9 +314,9 @@ def _opencode_result(repo_root: Path, runner: Runner, which: Which) -> dict[str,
     return {
         "status": status,
         "summary": (
-            "OpenCode CLI detected the local resume-tailor skill and bundled dependency source."
+            "OpenCode CLI detected the local resume-tailor skill and script entry points."
             if status == "pass"
-            else "OpenCode CLI probe did not confirm local skill discovery and bundled dependency source."
+            else "OpenCode CLI probe did not confirm local skill discovery and script entry points."
         ),
         "command_available": True,
         "probe_command": f'opencode run "{discovery_prompt}"',
@@ -297,7 +324,7 @@ def _opencode_result(repo_root: Path, runner: Runner, which: Which) -> dict[str,
         "workflow_probe": workflow,
         "discovery_passed": discovery_passed,
         "workflow_passed": workflow_passed,
-        "dependency_source_passed": dependency_source_passed,
+        "local_scripts_passed": local_scripts_passed,
         "manual_steps": manual_steps,
     }
 
@@ -364,7 +391,7 @@ def build_markdown_report(report: dict[str, Any]) -> str:
             lines.append(f"- Stdout: `{result['probe_stdout']}`")
         if result.get("probe_stderr"):
             lines.append(f"- Stderr: `{result['probe_stderr']}`")
-        for key in ("discovery_passed", "workflow_passed", "dependency_source_passed"):
+        for key in ("discovery_passed", "workflow_passed", "local_scripts_passed"):
             if key in result:
                 lines.append(f"- {key}: `{result[key]}`")
         if result.get("manual_steps"):
@@ -389,7 +416,7 @@ def main() -> int:
         print(json.dumps(report, ensure_ascii=False, indent=2))
     else:
         print(build_markdown_report(report))
-    return 0
+    return 0 if report["baseline"]["status"] == "pass" else 1
 
 
 if __name__ == "__main__":

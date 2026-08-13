@@ -6,13 +6,14 @@ from __future__ import annotations
 
 import argparse
 import sys
+import tempfile
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from templates.modern_resume_template import generate_resume, archive_root_pdfs, delete_root_pdfs  # noqa: E402
+from templates.modern_resume_template import archive_root_pdfs, generate_resume  # noqa: E402
 from templates.layout_settings import LayoutSettings  # noqa: E402
 from scripts.layout_auto_tuner import auto_fit_layout, LAYOUT_FIXABLE_CHECKS, CONTENT_CHECKS  # noqa: E402
 from scripts.check_pdf_quality import check_pdf_file  # noqa: E402
@@ -33,9 +34,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--line-height-scale", type=float, default=None, help="Line height scale (0.7-1.3)")
     parser.add_argument("--section-spacing-scale", type=float, default=None, help="Section spacing scale (0.7-1.3)")
     parser.add_argument("--item-spacing-scale", type=float, default=None, help="Item spacing scale (0.7-1.3)")
-    parser.add_argument("--margin-top-mm", type=float, default=5.0, help="Top margin in mm (default: 5.0)")
-    parser.add_argument("--margin-bottom-mm", type=float, default=5.0, help="Bottom margin in mm (default: 5.0)")
-    parser.add_argument("--margin-side-inch", type=float, default=0.6, help="Left/right margin in inches (default: 0.6)")
+    parser.add_argument("--margin-top-mm", type=float, default=None, help="Top margin in mm (default: 5.0)")
+    parser.add_argument("--margin-bottom-mm", type=float, default=None, help="Bottom margin in mm (default: 5.0)")
+    parser.add_argument("--margin-side-inch", type=float, default=None, help="Left/right margin in inches (default: 0.6)")
     parser.add_argument("--compact", action="store_true", help="Enable compact mode")
     parser.add_argument("--auto-fit", action="store_true", help="Auto-search layout parameters")
     parser.add_argument("--auto-fit-max-trials", type=int, default=12, help="Max layout candidates (default: 12)")
@@ -49,11 +50,28 @@ def _build_layout(args: argparse.Namespace) -> LayoutSettings:
         line_height_scale=args.line_height_scale,
         section_spacing_scale=args.section_spacing_scale,
         item_spacing_scale=args.item_spacing_scale,
-        margin_top_mm=args.margin_top_mm,
-        margin_bottom_mm=args.margin_bottom_mm,
-        margin_side_inch=args.margin_side_inch,
+        margin_top_mm=args.margin_top_mm if args.margin_top_mm is not None else 5.0,
+        margin_bottom_mm=(
+            args.margin_bottom_mm if args.margin_bottom_mm is not None else 5.0
+        ),
+        margin_side_inch=(
+            args.margin_side_inch if args.margin_side_inch is not None else 0.6
+        ),
         compact_mode=args.compact,
     )
+
+
+def _next_rejected_path(output_dir: Path, output_name: str) -> Path:
+    """Return a non-conflicting path for a generated PDF that failed QA."""
+    rejected_dir = output_dir / "rejected"
+    rejected_dir.mkdir(parents=True, exist_ok=True)
+    stem = Path(output_name).stem
+    candidate = rejected_dir / f"{stem}_rejected.pdf"
+    sequence = 2
+    while candidate.exists():
+        candidate = rejected_dir / f"{stem}_rejected_{sequence}.pdf"
+        sequence += 1
+    return candidate
 
 
 def main() -> int:
@@ -64,6 +82,9 @@ def main() -> int:
     if output_name != args.output_file:
         print("Error: --output-file must contain filename only, no path.", file=sys.stderr)
         return 1
+    if Path(output_name).suffix.casefold() != ".pdf":
+        print("Error: --output-file must use a .pdf extension.", file=sys.stderr)
+        return 1
 
     source_path = Path(args.input_json).expanduser().resolve()
     if not source_path.exists():
@@ -73,6 +94,23 @@ def main() -> int:
     if args.auto_fit_max_trials <= 0:
         print("Error: --auto-fit-max-trials must be positive.", file=sys.stderr)
         return 1
+    for name in (
+        "font_size_scale",
+        "line_height_scale",
+        "section_spacing_scale",
+        "item_spacing_scale",
+    ):
+        value = getattr(args, name)
+        if value is not None and not 0.7 <= value <= 1.3:
+            print(f"Error: --{name.replace('_', '-')} must be between 0.7 and 1.3.", file=sys.stderr)
+            return 1
+    for name in ("margin_top_mm", "margin_bottom_mm", "margin_side_inch"):
+        value = getattr(args, name)
+        if value is not None and value <= 0:
+            print(f"Error: --{name.replace('_', '-')} must be positive.", file=sys.stderr)
+            return 1
+
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     try:
         content = load_json_file(source_path)
@@ -82,7 +120,9 @@ def main() -> int:
             has_custom = any(
                 getattr(args, attr) is not None
                 for attr in ("font_size_scale", "line_height_scale",
-                              "section_spacing_scale", "item_spacing_scale")
+                              "section_spacing_scale", "item_spacing_scale",
+                              "margin_top_mm", "margin_bottom_mm",
+                              "margin_side_inch")
             )
             hint_layout = _build_layout(args) if has_custom or args.compact else None
 
@@ -107,26 +147,44 @@ def main() -> int:
         else:
             layout = _build_layout(args)
 
-        output_path = generate_resume(
-            output_name, content, base_dir=str(output_dir), layout=layout
-        )
-    except (ValueError, FileNotFoundError, OSError) as exc:
+        with tempfile.TemporaryDirectory(
+            prefix=".resume-staging-", dir=str(output_dir)
+        ) as staging_dir:
+            candidate_path = Path(
+                generate_resume(
+                    output_name,
+                    content,
+                    base_dir=staging_dir,
+                    layout=layout,
+                )
+            )
+            qa_report = check_pdf_file(candidate_path)
+            qa_passed = qa_report.get("verdict") == "PASS"
+
+            if not qa_passed:
+                failed = [
+                    check["name"]
+                    for check in qa_report.get("checks", [])
+                    if not check.get("passed")
+                ]
+                rejected_path = _next_rejected_path(output_dir, output_name)
+                candidate_path.replace(rejected_path)
+                print(
+                    f"\u2717 QA not passed ({', '.join(failed)}); "
+                    "previous resume files were preserved."
+                )
+                print(f"Rejected candidate retained for review: {rejected_path}")
+                return 2
+
+            archive_root_pdfs(output_dir)
+            final_path = output_dir / output_name
+            candidate_path.replace(final_path)
+    except Exception as exc:  # noqa: BLE001 - CLI must convert renderer/parser errors into a stable exit code.
         print(f"Generation failed: {exc}", file=sys.stderr)
         return 1
 
-    output_file_path = Path(output_path)
-    qa_report = check_pdf_file(output_file_path)
-    qa_passed = qa_report.get("verdict") == "PASS"
-
-    if qa_passed:
-        print("\u2713 QA passed \u2014 archiving previous version(s) to backup/")
-        archive_root_pdfs(output_dir, exclude_names={output_file_path.name})
-    else:
-        failed = [c["name"] for c in qa_report.get("checks", []) if not c.get("passed")]
-        print(f"\u2717 QA not passed ({', '.join(failed)}) \u2014 old file(s) removed, not archived")
-        delete_root_pdfs(output_dir, exclude_names={output_file_path.name})
-
-    print(f"Generated successfully: {output_path}")
+    print("\u2713 QA passed; previous version(s) archived to backup/")
+    print(f"Generated successfully: {final_path}")
     return 0
 
 

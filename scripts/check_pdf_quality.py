@@ -13,6 +13,12 @@ from typing import Any
 
 import pdfplumber
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from scripts.resume_shared import term_matches  # noqa: E402
+
 A4_WIDTH_MM = 210.0
 A4_HEIGHT_MM = 297.0
 A4_TOLERANCE_MM = 1.0
@@ -27,7 +33,10 @@ SECTION_KEYWORDS = {
 EMAIL_PATTERN = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 PHONE_PATTERN = re.compile(r"(?:\+?\d[\d()\-\s]{7,}\d)")
 LINKEDIN_PATTERN = re.compile(r"linkedin\.com/", re.IGNORECASE)
-HTML_TAG_PATTERN = re.compile(r"</?[A-Za-z][^>]*>")
+HTML_TAG_PATTERN = re.compile(
+    r"</?(?:b|strong|i|em|u|font|para|br|span|p)(?:\s+[^>]*)?/?>",
+    re.IGNORECASE,
+)
 PLACEHOLDER_PATTERN = re.compile(
     r"\[(?:To be filled|Dates|Degree|School|Certification|Award|Project|Company|Title|Location)\]",
     re.IGNORECASE,
@@ -101,10 +110,6 @@ def estimate_page_margins_mm(page: Any) -> dict[str, float] | None:
     }
 
 
-def margin_within_range(value: float, minimum: float, maximum: float) -> bool:
-    return minimum <= value <= maximum
-
-
 def build_quality_report(
     *,
     page_count: int,
@@ -153,19 +158,36 @@ def build_quality_report(
     # Margin checks
     margin_detail: dict[str, Any] = {"available": margins is not None}
     margin_ok = {"bottom": True, "top": True, "left": True, "right": True}
+    warnings = list(layout_warnings)
 
     if margins is not None:
-        margin_ok["bottom"] = margin_within_range(
-            margins["bottom"], margin_thresholds["min_bottom_mm"], margin_thresholds["max_bottom_mm"])
-        margin_ok["top"] = margin_within_range(
-            margins["top"], margin_thresholds["min_top_mm"], margin_thresholds["max_top_mm"])
-        margin_ok["left"] = margin_within_range(
-            margins["left"], margin_thresholds["min_side_mm"], margin_thresholds["max_side_mm"])
-        margin_ok["right"] = margin_within_range(
-            margins["right"], margin_thresholds["min_side_mm"], margin_thresholds["max_side_mm"])
+        margin_ok["bottom"] = margins["bottom"] >= margin_thresholds["min_bottom_mm"]
+        margin_ok["top"] = margins["top"] >= margin_thresholds["min_top_mm"]
+        margin_ok["left"] = margins["left"] >= margin_thresholds["min_side_mm"]
+        margin_ok["right"] = margins["right"] >= margin_thresholds["min_side_mm"]
         margin_detail.update({
             f"{side}_mm": round(margins[side], 2) for side in ("top", "bottom", "left", "right")
         })
+        margin_detail.update({
+            "min_bottom_mm": margin_thresholds["min_bottom_mm"],
+            "preferred_max_bottom_mm": margin_thresholds["max_bottom_mm"],
+            "min_top_mm": margin_thresholds["min_top_mm"],
+            "preferred_max_top_mm": margin_thresholds["max_top_mm"],
+            "min_side_mm": margin_thresholds["min_side_mm"],
+            "preferred_max_side_mm": margin_thresholds["max_side_mm"],
+        })
+        for side, maximum_key in (
+            ("bottom", "max_bottom_mm"),
+            ("top", "max_top_mm"),
+            ("left", "max_side_mm"),
+            ("right", "max_side_mm"),
+        ):
+            maximum = margin_thresholds[maximum_key]
+            if margins[side] > maximum:
+                warnings.append(
+                    f"{side.title()} whitespace is {margins[side]:.2f}mm; "
+                    f"preferred maximum is {maximum:.2f}mm"
+                )
 
     checks.append({"name": "bottom_margin", "passed": margin_ok["bottom"], "detail": margin_detail})
     checks.append({"name": "top_margin", "passed": margin_ok["top"], "detail": margin_detail})
@@ -193,7 +215,7 @@ def build_quality_report(
     checks.append({
         "name": "layout_warnings",
         "passed": True,
-        "detail": {"warnings": layout_warnings},
+        "detail": {"warnings": warnings},
     })
 
     _NON_CRITICAL_CHECKS = {"layout_warnings"}
@@ -246,15 +268,18 @@ def _format_text_report(report: dict[str, Any], pdf_name: str, args: argparse.Na
             c = checks[name]
             val = margin_detail[f"{side}_mm"]
             mark = "\u2713" if c["passed"] else "\u2717"
-            status = "target" if c["passed"] else "exceeds target"
-            lines.append(f"{i}. {name.replace('_', ' ').title()}: {mark} {val:.2f}mm ({status} {lo}-{hi}mm)")
+            status = "safe" if c["passed"] else "below safe minimum"
+            lines.append(
+                f"{i}. {name.replace('_', ' ').title()}: {mark} {val:.2f}mm "
+                f"({status}; minimum {lo}mm, preferred maximum {hi}mm)"
+            )
 
         side_ok = checks["side_margins"]["passed"]
         l_mm, r_mm = margin_detail["left_mm"], margin_detail["right_mm"]
         mark = "\u2713" if side_ok else "\u2717"
         lines.append(
             f"8. Left/Right Margins: {mark} left {l_mm:.2f}mm, right {r_mm:.2f}mm "
-            f"(target {args.min_side_mm}-{args.max_side_mm}mm)"
+            f"(minimum {args.min_side_mm}mm, preferred maximum {args.max_side_mm}mm)"
         )
 
     # Sections
@@ -318,9 +343,12 @@ def check_pdf_file(
     kw_list = keywords or []
 
     with pdfplumber.open(pdf_path) as pdf:
+        if not pdf.pages:
+            raise ValueError(f"PDF contains no pages: {pdf_path}")
         first_page = pdf.pages[0]
         full_text = "\n".join((page.extract_text() or "") for page in pdf.pages)
         lines = [line.strip() for line in full_text.splitlines() if line.strip()]
+        contact_text = "\n".join(lines[:4])
 
         upper_text = full_text.upper()
         missing_sections = [
@@ -347,11 +375,15 @@ def check_pdf_file(
             margins=estimate_page_margins_mm(first_page),
             missing_sections=missing_sections,
             contact={
-                "email": bool(EMAIL_PATTERN.search(full_text)),
-                "phone": bool(PHONE_PATTERN.search(full_text)),
-                "linkedin": bool(LINKEDIN_PATTERN.search(full_text)),
+                "email": bool(EMAIL_PATTERN.search(contact_text)),
+                "phone": bool(PHONE_PATTERN.search(contact_text)),
+                "linkedin": bool(LINKEDIN_PATTERN.search(contact_text)),
             },
-            missing_keywords=[kw for kw in kw_list if kw.lower() not in full_text.lower()] if kw_list else [],
+            missing_keywords=[
+                keyword
+                for keyword in kw_list
+                if not term_matches(full_text, keyword)
+            ],
             provided_keywords=kw_list,
             layout_warnings=layout_warnings,
             margin_thresholds=thresholds,
@@ -366,18 +398,22 @@ def main() -> int:
         print(f"Error: File does not exist: {pdf_path}", file=sys.stderr)
         return 1
 
-    report = check_pdf_file(
-        pdf_path,
-        keywords=args.keyword,
-        margin_thresholds={
-            "min_bottom_mm": args.min_bottom_mm,
-            "max_bottom_mm": args.max_bottom_mm,
-            "min_top_mm": args.min_top_mm,
-            "max_top_mm": args.max_top_mm,
-            "min_side_mm": args.min_side_mm,
-            "max_side_mm": args.max_side_mm,
-        },
-    )
+    try:
+        report = check_pdf_file(
+            pdf_path,
+            keywords=args.keyword,
+            margin_thresholds={
+                "min_bottom_mm": args.min_bottom_mm,
+                "max_bottom_mm": args.max_bottom_mm,
+                "min_top_mm": args.min_top_mm,
+                "max_top_mm": args.max_top_mm,
+                "min_side_mm": args.min_side_mm,
+                "max_side_mm": args.max_side_mm,
+            },
+        )
+    except Exception as exc:  # noqa: BLE001 - provide a stable CLI failure instead of a parser traceback.
+        print(f"Error: PDF quality check failed: {exc}", file=sys.stderr)
+        return 1
 
     if args.json_output:
         print(json.dumps(report, ensure_ascii=False, indent=2))

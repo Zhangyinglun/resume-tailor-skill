@@ -10,10 +10,10 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from xml.sax.saxutils import escape
 
-from reportlab.lib import colors
 from reportlab.lib.colors import Color
-from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT, TA_RIGHT
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch, mm
@@ -28,9 +28,13 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from scripts.resume_shared import validate_resume_content
-from templates.design_tokens import DEFAULT_TOKENS, DesignTokens
-from templates.layout_settings import DEFAULT_SETTINGS, LayoutSettings
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from scripts.resume_shared import validate_resume_content  # noqa: E402
+from templates.design_tokens import DEFAULT_TOKENS, DesignTokens  # noqa: E402
+from templates.layout_settings import DEFAULT_SETTINGS, LayoutSettings  # noqa: E402
 
 _TWO_COL_STYLE = TableStyle(
     [
@@ -185,21 +189,9 @@ def archive_root_pdfs(
     return archived
 
 
-def delete_root_pdfs(
-    base_output_dir: Path, exclude_names: set[str] | None = None
-) -> list[Path]:
-    """Delete historical PDFs from output root directory (QA not passed)."""
-    excluded = exclude_names or set()
-    deleted: list[Path] = []
-
-    for pdf_file in sorted(base_output_dir.glob("*.pdf")):
-        if pdf_file.name in excluded:
-            continue
-        pdf_file.unlink()
-        deleted.append(pdf_file)
-        print(f"\u2717 Old file deleted (QA not passed): {pdf_file}")
-
-    return deleted
+def _safe_text(value: Any) -> str:
+    """Escape user-controlled text before passing it to ReportLab Paragraph."""
+    return escape(str(value), {'"': "&quot;", "'": "&#39;"})
 
 
 def _render_two_col_items(
@@ -219,7 +211,7 @@ def _render_two_col_items(
         left_text = left_builder(item)
         story.append(_two_col_row(
             Paragraph(left_text, styles["CompanyName"]),
-            Paragraph(item.get(dates_key, ""), styles["DatesRight"]),
+            Paragraph(_safe_text(item.get(dates_key, "")), styles["DatesRight"]),
             doc_width,
         ))
         if detail_builder:
@@ -228,7 +220,7 @@ def _render_two_col_items(
                 story.append(Paragraph(detail, styles["JobDetail"]))
         if has_bullets:
             for bullet in item.get("bullets", []):
-                story.append(Paragraph(f"\u2022 {bullet}", styles["Bullet"]))
+                story.append(Paragraph(f"\u2022 {_safe_text(bullet)}", styles["Bullet"]))
         if i < len(items) - 1 and has_bullets:
             story.append(Spacer(1, 0.05 * inch * item_spacing))
 
@@ -239,18 +231,30 @@ def generate_resume(
     base_dir: str = "resume_output",
     layout: LayoutSettings | None = None,
     tokens: DesignTokens | None = None,
+    *,
+    overwrite: bool = False,
 ) -> str:
     """Generate resume PDF from structured content."""
     output_name = Path(output_file).name
     if output_name != output_file:
         raise ValueError("output_file must be filename only, cannot contain path.")
+    if Path(output_name).suffix.casefold() != ".pdf":
+        raise ValueError("output_file must use a .pdf extension.")
 
     validate_resume_content(content_dict)
 
     base_output_dir = Path(base_dir)
+    resolved_output_dir = base_output_dir.expanduser().resolve()
+    if resolved_output_dir == PROJECT_ROOT or PROJECT_ROOT in resolved_output_dir.parents:
+        raise ValueError(
+            "PDF output must use a user workspace outside the Skill package."
+        )
+    base_output_dir = resolved_output_dir
     base_output_dir.mkdir(parents=True, exist_ok=True)
 
     output_path = base_output_dir / output_name
+    if output_path.exists() and not overwrite:
+        raise FileExistsError(f"Refusing to overwrite existing PDF: {output_path}")
     temp_output_path = base_output_dir / f".{output_path.stem}.tmp.pdf"
     if temp_output_path.exists():
         temp_output_path.unlink()
@@ -275,19 +279,23 @@ def generate_resume(
     item_spacing = settings.effective_item_spacing_scale
 
     # Header — name, then contact
-    story.append(Paragraph(content_dict["name"], styles["Header"]))
-    story.append(Paragraph(content_dict["contact"], styles["Contact"]))
+    story.append(Paragraph(_safe_text(content_dict["name"]), styles["Header"]))
+    story.append(Paragraph(_safe_text(content_dict["contact"]), styles["Contact"]))
 
     # Summary
     _add_section(story, "SUMMARY", styles, accent, t)
-    story.append(Paragraph(content_dict["summary"], styles["Body"]))
+    story.append(Paragraph(_safe_text(content_dict["summary"]), styles["Body"]))
 
     # Experience
     _add_section(story, "PROFESSIONAL EXPERIENCE", styles, accent, t)
     _render_two_col_items(
         story, content_dict["experience"], styles, doc.width, item_spacing,
-        left_builder=lambda j: j.get("company", ""),
-        detail_builder=lambda j: " | ".join(p for p in (j.get("title", ""), j.get("location", "")) if p),
+        left_builder=lambda j: _safe_text(j.get("company", "")),
+        detail_builder=lambda j: " | ".join(
+            _safe_text(part)
+            for part in (j.get("title", ""), j.get("location", ""))
+            if part
+        ),
     )
 
     # Projects (optional)
@@ -295,14 +303,15 @@ def generate_resume(
         _add_section(story, "PROJECTS", styles, accent, t)
         _render_two_col_items(
             story, content_dict["projects"], styles, doc.width, item_spacing,
-            left_builder=lambda p: f"<b>{p.get('name', '')}</b>" + (f" | {p['tech']}" if p.get("tech") else ""),
+            left_builder=lambda p: f"<b>{_safe_text(p.get('name', ''))}</b>"
+            + (f" | {_safe_text(p['tech'])}" if p.get("tech") else ""),
         )
 
     # Skills
     _add_section(story, "TECHNICAL SKILLS", styles, accent, t)
     for skill in content_dict["skills"]:
         story.append(Paragraph(
-            f"<b>{skill.get('category', 'Skill')}:</b> {skill.get('items', '')}",
+            f"<b>{_safe_text(skill.get('category', 'Skill'))}:</b> {_safe_text(skill.get('items', ''))}",
             styles["Body"],
         ))
 
@@ -311,7 +320,8 @@ def generate_resume(
         _add_section(story, "CERTIFICATIONS", styles, accent, t)
         _render_two_col_items(
             story, content_dict["certifications"], styles, doc.width, item_spacing,
-            left_builder=lambda c: f"<b>{c.get('name', '')}</b>" + (f" - {c['issuer']}" if c.get("issuer") else ""),
+            left_builder=lambda c: f"<b>{_safe_text(c.get('name', ''))}</b>"
+            + (f" - {_safe_text(c['issuer'])}" if c.get("issuer") else ""),
             has_bullets=False,
         )
 
@@ -320,7 +330,12 @@ def generate_resume(
         _add_section(story, "AWARDS", styles, accent, t)
         _render_two_col_items(
             story, content_dict["awards"], styles, doc.width, item_spacing,
-            left_builder=lambda a: f"<b>{a.get('name', '')}</b>" + (f" - {a['organization']}" if a.get("organization") else ""),
+            left_builder=lambda a: f"<b>{_safe_text(a.get('name', ''))}</b>"
+            + (
+                f" - {_safe_text(a['organization'])}"
+                if a.get("organization")
+                else ""
+            ),
             has_bullets=False,
         )
 
@@ -328,12 +343,12 @@ def generate_resume(
     _add_section(story, "EDUCATION", styles, accent, t)
     for edu in content_dict["education"]:
         story.append(_two_col_row(
-            Paragraph(f"<b>{edu.get('school', '')}</b>", styles["Education"]),
-            Paragraph(edu.get("dates", ""), styles["DatesRight"]),
+            Paragraph(f"<b>{_safe_text(edu.get('school', ''))}</b>", styles["Education"]),
+            Paragraph(_safe_text(edu.get("dates", "")), styles["DatesRight"]),
             doc.width,
         ))
         if edu.get("degree"):
-            story.append(Paragraph(edu["degree"], styles["EducationDegree"]))
+            story.append(Paragraph(_safe_text(edu["degree"]), styles["EducationDegree"]))
 
     doc.build(story)
 
@@ -342,37 +357,3 @@ def generate_resume(
     print(f"\u2713 PDF generation completed: {output_path}")
     print(f"\u2713 Font used: {base_font}")
     return str(output_path)
-
-
-if __name__ == "__main__":
-    example_content = {
-        "name": "FULL NAME",
-        "contact": "City, State \u2022 +1 000-000-0000 \u2022 email@example.com \u2022 linkedin.com/in/your-id",
-        "summary": "Experienced engineer with strengths in distributed systems and data platforms.",
-        "skills": [
-            {"category": "Programming Languages", "items": "Python, Go, Java"},
-            {"category": "Data Platform", "items": "Kafka, Spark, Hadoop"},
-        ],
-        "experience": [
-            {
-                "company": "Example Corp",
-                "title": "Software Engineer",
-                "location": "Seattle, WA",
-                "dates": "2023 - Present",
-                "bullets": [
-                    "Built a streaming pipeline and reduced data latency by 35%.",
-                    "Improved service reliability to 99.95% through automated failover.",
-                ],
-            }
-        ],
-        "education": [
-            {
-                "school": "Example University",
-                "degree": "M.S. in Computer Science",
-                "dates": "2021 - 2023",
-            }
-        ],
-    }
-
-    output_name = sys.argv[1] if len(sys.argv) > 1 else "resume_example.pdf"
-    generate_resume(output_name, example_content, base_dir="resume_output/test")
