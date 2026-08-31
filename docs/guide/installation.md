@@ -36,7 +36,7 @@ The validator version is pinned to the same official revision used by CI. Monkey
 
 ```bash
 python3 -m pip install -r requirements-dev.txt
-skills-ref validate .
+skills-ref validate "$PWD"
 ruff check scripts templates tests
 python3 -m unittest discover -s tests -v
 ```

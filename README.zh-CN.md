@@ -97,7 +97,7 @@ tests/                   回归与端到端测试
 
 ```bash
 python3 -m pip install -r requirements-dev.txt
-skills-ref validate .
+skills-ref validate "$PWD"
 ruff check scripts templates tests
 python3 -m unittest discover -s tests -v
 ```

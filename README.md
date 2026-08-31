@@ -97,7 +97,7 @@ Install development dependencies and run the complete validation suite:
 
 ```bash
 python3 -m pip install -r requirements-dev.txt
-skills-ref validate .
+skills-ref validate "$PWD"
 ruff check scripts templates tests
 python3 -m unittest discover -s tests -v
 ```

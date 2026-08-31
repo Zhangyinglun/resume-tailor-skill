@@ -23,7 +23,7 @@ Repository development instructions for the portable `monkey-resume` Skill packa
 
 ```bash
 python3 -m pip install -r requirements-dev.txt
-skills-ref validate .
+skills-ref validate "$PWD"
 ruff check scripts templates tests
 python3 -m unittest discover -s tests -v
 ```
