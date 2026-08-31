@@ -46,6 +46,7 @@ The project also needs a resume-specific natural-language layer. Generic LLM out
 8. Preserve canonical tool and language names in Skills.
 9. Use a dedicated Resume Language Optimizer after evidence selection and before the factual audit.
 10. Treat AI-writing pattern checks as explainable editing signals, not authorship classifiers.
+11. Evolve Skills from one comma-delimited string to individually auditable display items while accepting the legacy string form on input.
 
 ## 5. Domain model
 
@@ -60,6 +61,10 @@ An instruction describing what one Tailored Resume element must communicate, whi
 ### Resume Language Optimization
 
 A meaning-preserving transformation from Content Intents to concise, natural, recruiter-facing display text. It must preserve evidence scope, canonical technical terms, metrics, and ownership.
+
+### Skill Presentation Group
+
+A target-specific display grouping whose category label organizes individually evidence-bound Skill items. The category is presentation metadata, not an Evidence Entity or a factual claim about the candidate.
 
 ### Content Fit Feedback
 
@@ -276,7 +281,18 @@ These ranges guide the model. Only the one-to-five employment bounds are determi
 
 ## 11. Skills evidence-chain policy
 
-The model generates two to four dynamic Skills groups. Category names are target-specific; no fixed category taxonomy is required. Under the preferred readable layout, the Skills body must occupy two to four measured PDF lines, excluding the section heading. A group should normally render on one line; when wrapping pushes the section beyond four lines, Content Fit trims, regroups, or removes lower-value items using actual geometry feedback.
+The model generates two to four dynamic Skill Presentation Groups. Category names are target-specific; no fixed category taxonomy is required. Under the preferred readable layout, the Skills body must occupy two to four measured PDF lines, excluding the section heading. A group should normally render on one line; when wrapping pushes the section beyond four lines, Content Fit trims, regroups, or removes lower-value items using actual geometry feedback.
+
+The Tailored Resume evolves the Skills display contract from a comma-delimited string to a list of individually auditable display terms:
+
+```json
+{
+  "category": "AI Platforms & Tooling",
+  "items": ["Azure OpenAI", "MCP", "RAG", "Evals"]
+}
+```
+
+Readers, validators, and renderers must continue accepting the legacy string form. Legacy input is normalized to a list before planning or auditing. Rendering joins the list with `, ` and does not expose evidence metadata in the Tailored Resume.
 
 A Skill item may appear only if at least one condition holds:
 
@@ -304,6 +320,8 @@ Each displayed Skill item carries its own claim links and basis:
 ```
 
 Canonical names and casing are frozen during language optimization. The model may organize, order, deduplicate, and strictly normalize terms, but it may not replace internal authentication with OAuth, a general API with a ChatGPT Plugin, or an evidenced technology with a JD-only technology.
+
+Each `skills[i].items[j]` path receives a normal single-entity Manifest binding to the Evidence Entity that owns its supporting Atomic Claims. A dynamic `skills[i].category` is a presentation label: its Manifest entry uses `binding_mode: "presentation"`, records the grouped item paths and reason, and is not allowed to masquerade as an Evidence Entity. The factual auditor permits this mode only for Skill Presentation Group categories and verifies that any technical term in the category is supported by at least one bound item in that group.
 
 ## 12. Resume Language Optimizer
 
@@ -386,12 +404,15 @@ For every non-empty Tailored Resume field it must produce exactly one Manifest e
 
 - `projection_path`;
 - `rendered_text`;
-- `entity_id`;
-- active `source_claim_ids`;
+- `binding_mode` (`single_entity` by default, `presentation` only for dynamic Skills category labels);
+- `entity_id` and active `source_claim_ids` for every `single_entity` entry;
+- grouped Skill item paths for a `presentation` category entry;
 - operation;
 - Match Type;
 - declared Semantic Normalizations;
 - reason.
+
+Skill items use paths such as `skills[0].items[0]`, so Azure OpenAI, MCP, RAG, and Evals may each bind to the Evidence Entity that actually owns the evidence. The auditor must not relax single-entity binding for any other field type.
 
 Every removed Source Snapshot field or prior projection field must have a removed-entry record. Optional section decisions are not sufficient by themselves; the resulting Manifest must list the exact removed source fields.
 
@@ -531,11 +552,19 @@ Modified files:
 - `references/prompt-recipes.md`
 - `references/execution-checklist.md`
 - `references/resume-language-quality.md`
+- `scripts/resume_shared.py`
+- `scripts/evidence_ledger_manager.py`
+- `scripts/audit_factual_integrity.py`
 - `scripts/check_content_quality.py`
 - `scripts/check_pdf_geometry.py`
 - `scripts/generate_quality_report.py`
+- `templates/modern_resume_template.py`
+- `tests/test_resume_shared.py`
+- `tests/test_evidence_ledger.py`
+- `tests/test_factual_audit.py`
 - `tests/test_content_quality.py`
 - `tests/test_pdf_geometry.py`
+- `tests/test_pdf_pipeline.py`
 - `tests/test_quality_report.py`
 
 `generate_final_resume.py` and `layout_auto_tuner.py` should change only if integration requires passing already-computed artifacts or diagnostics. Their content-mutation boundary must remain unchanged.
@@ -549,7 +578,10 @@ Modified files:
 - more than five clarification questions fails;
 - omitted formal employment entity fails;
 - employment with zero or more than five bullets fails;
-- fewer than two or more than four Skills groups fails;
+- fewer than two or more than four Skill Presentation Groups fails;
+- legacy comma-delimited Skills input normalizes to item lists without changing display text;
+- each `skills[i].items[j]` has an independent single-entity Manifest binding;
+- a dynamic Skills category may use presentation binding, but another field type may not;
 - fewer than two or more than four measured Skills body lines requires a Content Fit revision;
 - optional Awards or Projects may be removed;
 - inactive, revoked, unknown, or cross-entity claim fails;
@@ -606,7 +638,7 @@ Model behavior itself is not unit-tested through network calls. Static plan and 
 1. The same Candidate Evidence Ledger produces materially different content budgets and Skills for different JDs.
 2. Model reasoning, not a fixed keyword score, decides vocabulary, importance, and removal order.
 3. Every formal employment entry remains and has one to five bullets.
-4. Skills contain two to four dynamic, evidence-supported groups and render into two to four measured body lines under the preferred layout.
+4. Skills contain two to four dynamic, evidence-supported Skill Presentation Groups, expose individually auditable item paths, and render into two to four measured body lines under the preferred layout.
 5. High-value evidence may trigger no more than five Clarifications.
 6. Projection planning and language output are independently structured and validated.
 7. Resume language is specific, natural, restrained, and free of dense chatbot patterns without using detector-evasion methods.

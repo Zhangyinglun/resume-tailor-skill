@@ -46,6 +46,7 @@
 8. Skills 中的标准工具名和编程语言名保持不变。
 9. 在证据选择后、事实审计前增加独立的 Resume Language Optimizer。
 10. 将 AI 写作模式检查视为可解释的编辑信号，而不是作者身份分类器。
+11. 将 Skills 从一个逗号分隔字符串演进为可逐项审计的展示项，同时继续兼容旧字符串输入格式。
 
 ## 5. 领域模型
 
@@ -60,6 +61,10 @@
 ### Resume Language Optimization
 
 将 Content Intent 转换成简洁、自然、面向招聘官的简历文案，同时保持证据范围、标准技术词、指标和 ownership 不变的语义保真转换。
+
+### Skill Presentation Group
+
+面向特定目标岗位的展示分组，其 category label 用于组织可逐项绑定证据的 Skill item。Category 是展示元数据，不是 Evidence Entity，也不是关于候选人的事实 claim。
 
 ### Content Fit Feedback
 
@@ -276,7 +281,18 @@ python3 scripts/projection_plan_manager.py build \
 
 ## 11. Skills 证据链策略
 
-模型动态生成 2–4 个 Skills 组。类别名称根据目标岗位决定，不要求固定分类体系。在优选可读布局下，Skills 正文必须占 2–4 条真实 PDF 文本行，不含 Section 标题。每个 Skills 组通常应渲染为一行；如果换行使正文超过四行，Content Fit 必须根据真实几何反馈删减、重新分组或删除低价值技能。
+模型动态生成 2–4 个 Skill Presentation Group。类别名称根据目标岗位决定，不要求固定分类体系。在优选可读布局下，Skills 正文必须占 2–4 条真实 PDF 文本行，不含 Section 标题。每个 Skills 组通常应渲染为一行；如果换行使正文超过四行，Content Fit 必须根据真实几何反馈删减、重新分组或删除低价值技能。
+
+Tailored Resume 将 Skills 展示契约从逗号分隔字符串改为可逐项审计的 display term 数组：
+
+```json
+{
+  "category": "AI Platforms & Tooling",
+  "items": ["Azure OpenAI", "MCP", "RAG", "Evals"]
+}
+```
+
+读取器、验证器和 Renderer 必须继续接受旧字符串格式。旧输入在规划或审计前被规范化为数组；渲染时用 `, ` 连接，不在 Tailored Resume 中暴露证据元数据。
 
 Skill item 至少满足以下一个条件才能展示：
 
@@ -304,6 +320,8 @@ Skill item 至少满足以下一个条件才能展示：
 ```
 
 标准名称和大小写在语言优化期间被冻结。模型可以组织、排序、去重并进行严格 Semantic Normalization，但不能把内部认证替换为 OAuth、把一般 API 替换为 ChatGPT Plugin，也不能用只存在于 JD 中的技术替换已有证据技术。
+
+每个 `skills[i].items[j]` 路径使用普通 single-entity Manifest binding，绑定到真正拥有支持 Atomic Claim 的 Evidence Entity。动态 `skills[i].category` 是 presentation label：其 Manifest entry 使用 `binding_mode: "presentation"`，记录组内 item path 和理由，不得伪装成 Evidence Entity。事实审计器只允许 Skill Presentation Group category 使用这种模式，并检查 category 中的技术术语至少受到组内一个已绑定 item 支持。
 
 ## 12. Resume Language Optimizer
 
@@ -386,12 +404,15 @@ Projection Plan Manager 合并当前 Projection Plan 和 Language Output。
 
 - `projection_path`；
 - `rendered_text`；
-- `entity_id`；
-- active `source_claim_ids`；
+- `binding_mode`，默认为 `single_entity`，只有动态 Skills category label 可以使用 `presentation`；
+- 每条 `single_entity` entry 的 `entity_id` 和 active `source_claim_ids`；
+- `presentation` category entry 对应的组内 Skill item path；
 - operation；
 - Match Type；
 - 声明的 Semantic Normalization；
 - reason。
+
+Skill item 使用 `skills[0].items[0]` 这类路径，因此 Azure OpenAI、MCP、RAG 和 Evals 可以分别绑定到真正拥有证据的 Evidence Entity。审计器不能对任何其他字段类型放宽 single-entity 绑定。
 
 Source Snapshot 或上一次投影中每个被删除的字段，都必须存在 removed-entry 记录。仅有可选 Section 决策并不足够；最终 Manifest 必须列出确切被删除的 source field。
 
@@ -531,11 +552,19 @@ Blocking check：
 - `references/prompt-recipes.md`
 - `references/execution-checklist.md`
 - `references/resume-language-quality.md`
+- `scripts/resume_shared.py`
+- `scripts/evidence_ledger_manager.py`
+- `scripts/audit_factual_integrity.py`
 - `scripts/check_content_quality.py`
 - `scripts/check_pdf_geometry.py`
 - `scripts/generate_quality_report.py`
+- `templates/modern_resume_template.py`
+- `tests/test_resume_shared.py`
+- `tests/test_evidence_ledger.py`
+- `tests/test_factual_audit.py`
 - `tests/test_content_quality.py`
 - `tests/test_pdf_geometry.py`
+- `tests/test_pdf_pipeline.py`
 - `tests/test_quality_report.py`
 
 只有集成确实需要传递已计算 artifact 或 diagnostic 时，才修改 `generate_final_resume.py` 和 `layout_auto_tuner.py`。它们不得改变“不能修改内容”的职责边界。
@@ -549,7 +578,10 @@ Blocking check：
 - 超过五个 clarification question 时失败；
 - 省略正式工作 Evidence Entity 时失败；
 - 正式工作 bullet 少于一条或多于五条时失败；
-- Skills group 少于两个或多于四个时失败；
+- Skill Presentation Group 少于两个或多于四个时失败；
+- 旧的逗号分隔 Skills 输入在不改变展示文本的情况下规范化为 item 数组；
+- 每个 `skills[i].items[j]` 都有独立的 single-entity Manifest binding；
+- 动态 Skills category 可以使用 presentation binding，其他字段类型不能使用；
 - Skills 正文实际少于两行或多于四行时，必须进入 Content Fit 修订；
 - 允许删除可选 Awards 或 Projects；
 - inactive、revoked、unknown 或跨实体 claim 时失败；
@@ -606,7 +638,7 @@ Distributed Systems fixture：
 1. 同一 Candidate Evidence Ledger 面对不同 JD 时，生成明显不同的内容预算和 Skills。
 2. 词汇、重要性和删除顺序由模型推理决定，而不是固定关键词分数。
 3. 每段正式工作均被保留，并包含 1–5 条 bullet。
-4. Skills 包含 2–4 个动态、有证据支持的组，并在优选布局下实际渲染为 2–4 行正文。
+4. Skills 包含 2–4 个动态、有证据支持的 Skill Presentation Group，提供可逐项审计的 item path，并在优选布局下实际渲染为 2–4 行正文。
 5. 高价值证据最多触发五个 Clarification。
 6. Projection Plan 与 Language Output 分别结构化并独立验证。
 7. 简历语言具体、自然、克制，没有密集 chatbot pattern，且不使用 detector-evasion 方法。
