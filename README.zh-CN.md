@@ -34,10 +34,12 @@ python3 scripts/check_agent_platform_support.py
 个人数据只保存在当前用户工作区：
 
 ```text
-cache/base-resume.json
-cache/resume-working.json
-cache/jd-analysis.json
-cache/user-profile.md
+cache/base-resume.json             不可变 Source Snapshot
+cache/candidate-evidence.json       跨 JD 长期事实账本
+cache/candidate-profile.json        长期展示偏好
+cache/jd-analysis.json              双轴 JD 能力分析
+cache/resume-working.json           当前定制简历投影
+cache/resume-changes.json           全字段 Tailoring Manifest
 resume_output/
 ```
 
@@ -46,8 +48,10 @@ resume_output/
 ## 安全保证
 
 - 不捏造经历、职责、技术、日期或指标。
-- 自动排版只调整布局。
-- PDF 先在临时目录生成，质检通过后才发布。
+- 跨 JD 复用候选人已确认事实，让追问逐次减少。
+- PDF 渲染前强制执行全字段 Manifest 与事实审计。
+- 自动排版只调整布局；PDF QA 使用真实渲染坐标。
+- PDF 先在临时目录生成，所有阻断门禁通过后才发布。
 - 新候选失败时保留上一份合格 PDF；失败候选进入 `resume_output/rejected/`。
 - 默认输出单页 A4、可提取文本的 PDF。
 

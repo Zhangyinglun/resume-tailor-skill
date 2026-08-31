@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest import mock
 
 try:
@@ -17,12 +18,18 @@ except ImportError:  # pragma: no cover - dependency check reports this separate
     reportlab = None
 
 from scripts.check_pdf_quality import build_quality_report
+from scripts.evidence_ledger_manager import (
+    initialize_workspace,
+    rebuild_tailoring_manifest,
+)
 
 
-def sample_resume(*, invalid: bool = False) -> dict[str, object]:
+def sample_resume(*, invalid: bool = False) -> dict[str, Any]:
     bullets = [
-        f"Built distributed service {index} using Python and AWS, reducing latency by {20 + index}%."
-        for index in range(8)
+        "Built distributed APIs using Python and AWS, reducing latency by 20%.",
+        "Automated deployment validation with Python, preventing invalid releases.",
+        "Designed recovery workflows across AWS services, improving resilience.",
+        "Implemented request tracing with Python, enabling faster incident diagnosis.",
     ]
     return {
         "name": "[Company]" if invalid else "Alex Chen",
@@ -50,6 +57,12 @@ def sample_resume(*, invalid: bool = False) -> dict[str, object]:
             }
         ],
     }
+
+
+def prepare_audited_workspace(root: Path, resume: dict[str, Any]) -> Path:
+    initialize_workspace(root, resume)
+    rebuild_tailoring_manifest(root)
+    return root / "cache" / "resume-working.json"
 
 
 class PdfQualityPolicyTests(unittest.TestCase):
@@ -100,6 +113,7 @@ class PdfPipelineTests(unittest.TestCase):
         from scripts.check_pdf_quality import check_pdf_file
         from templates.modern_resume_template import generate_resume
 
+        assert pdfplumber is not None
         resume = sample_resume()
         resume["summary"] = "Built R&D services with Java Map<K,V> and C++ & C#."
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -111,10 +125,59 @@ class PdfPipelineTests(unittest.TestCase):
             self.assertIn("Map<K,V>", text)
             self.assertIn("R&D", text)
             report = check_pdf_file(output)
-            html_check = next(
-                check for check in report["checks"] if check["name"] == "html_leak"
-            )
+            html_check = next(check for check in report["checks"] if check["name"] == "html_leak")
             self.assertTrue(html_check["passed"])
+            geometry_check = next(
+                check for check in report["checks"] if check["name"] == "text_geometry"
+            )
+            self.assertIn("sparse_trailing_line_count", geometry_check["detail"])
+
+    def test_generator_blocks_when_mandatory_audit_inputs_are_missing(self) -> None:
+        import scripts.generate_final_resume as cli
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = root / "resume.json"
+            source.write_text(json.dumps(sample_resume()), encoding="utf-8")
+            output_dir = root / "output"
+            argv = [
+                "generate_final_resume.py",
+                "--input-json",
+                str(source),
+                "--output-file",
+                "resume.pdf",
+                "--output-dir",
+                str(output_dir),
+            ]
+            stderr = io.StringIO()
+            with mock.patch.object(sys, "argv", argv), contextlib.redirect_stderr(stderr):
+                result = cli.main()
+
+            self.assertEqual(result, 1)
+            self.assertIn("factual audit", stderr.getvalue().lower())
+            self.assertFalse((output_dir / "resume.pdf").exists())
+
+    def test_generator_rejects_output_dir_inside_skill_package(self) -> None:
+        import scripts.generate_final_resume as cli
+
+        repo_root = Path(__file__).resolve().parent.parent
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = prepare_audited_workspace(Path(temp_dir), sample_resume())
+            argv = [
+                "generate_final_resume.py",
+                "--input-json",
+                str(source),
+                "--output-file",
+                "resume.pdf",
+                "--output-dir",
+                str(repo_root / "resume_output"),
+            ]
+            stderr = io.StringIO()
+            with mock.patch.object(sys, "argv", argv), contextlib.redirect_stderr(stderr):
+                result = cli.main()
+
+            self.assertEqual(result, 1)
+            self.assertIn("outside the Skill package", stderr.getvalue())
 
     def test_failed_candidate_preserves_existing_pdfs(self) -> None:
         import scripts.generate_final_resume as cli
@@ -127,8 +190,7 @@ class PdfPipelineTests(unittest.TestCase):
             other = output_dir / "previous-good.pdf"
             current.write_bytes(b"accepted-current")
             other.write_bytes(b"accepted-other")
-            source = root / "resume.json"
-            source.write_text(json.dumps(sample_resume(invalid=True)), encoding="utf-8")
+            source = prepare_audited_workspace(root, sample_resume(invalid=True))
 
             argv = [
                 "generate_final_resume.py",
@@ -156,8 +218,7 @@ class PdfPipelineTests(unittest.TestCase):
             output_dir.mkdir()
             current = output_dir / "resume.pdf"
             current.write_bytes(b"accepted-current")
-            source = root / "resume.json"
-            source.write_text(json.dumps(sample_resume()), encoding="utf-8")
+            source = prepare_audited_workspace(root, sample_resume())
 
             argv = [
                 "generate_final_resume.py",
@@ -175,6 +236,91 @@ class PdfPipelineTests(unittest.TestCase):
             self.assertEqual(result, 0)
             self.assertTrue(current.read_bytes().startswith(b"%PDF"))
             self.assertTrue(list((output_dir / "backup").rglob("resume_old_*.pdf")))
+
+    def test_generator_accepts_valid_warning_disposition(self) -> None:
+        import scripts.generate_final_resume as cli
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "output"
+            # 2 bullets in 1 experience entry triggers bullet_density advisory warning
+            sparse_resume = sample_resume()
+            sparse_resume["experience"][0]["bullets"] = [
+                "Built reliable APIs using Python, improving system uptime.",
+                "Automated release testing with Python, preventing failed rollouts.",
+            ]
+            source = prepare_audited_workspace(root, sparse_resume)
+
+            # Add valid disposition
+            manifest_path = root / "cache" / "resume-changes.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["warning_dispositions"] = [
+                {
+                    "finding": "bullet_density",
+                    "status": "accepted",
+                    "reason": "Compact resume format accepted for this target position.",
+                }
+            ]
+            manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+            argv = [
+                "generate_final_resume.py",
+                "--input-json",
+                str(source),
+                "--output-file",
+                "resume.pdf",
+                "--output-dir",
+                str(output_dir),
+                "--auto-fit",
+            ]
+            with mock.patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()):
+                result = cli.main()
+
+            self.assertEqual(result, 0)
+            self.assertTrue((output_dir / "resume.pdf").exists())
+
+    def test_generator_blocks_disposition_with_empty_reason_or_wrong_finding(self) -> None:
+        import scripts.generate_final_resume as cli
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "output"
+            sparse_resume = sample_resume()
+            sparse_resume["experience"][0]["bullets"] = [
+                "Built reliable APIs using Python, improving system uptime.",
+                "Automated release testing with Python, preventing failed rollouts.",
+            ]
+            source = prepare_audited_workspace(root, sparse_resume)
+            manifest_path = root / "cache" / "resume-changes.json"
+
+            # 1. Empty reason should block
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["warning_dispositions"] = [
+                {"finding": "bullet_density", "status": "accepted", "reason": "   "}
+            ]
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+            argv = [
+                "generate_final_resume.py",
+                "--input-json",
+                str(source),
+                "--output-file",
+                "resume.pdf",
+                "--output-dir",
+                str(output_dir),
+            ]
+            with mock.patch.object(sys, "argv", argv), contextlib.redirect_stderr(io.StringIO()):
+                result = cli.main()
+            self.assertEqual(result, 2)
+
+            # 2. Mismatched finding name should block
+            manifest["warning_dispositions"] = [
+                {"finding": "unrelated_check", "status": "accepted", "reason": "Valid reason"}
+            ]
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with mock.patch.object(sys, "argv", argv), contextlib.redirect_stderr(io.StringIO()):
+                result = cli.main()
+            self.assertEqual(result, 2)
 
 
 if __name__ == "__main__":

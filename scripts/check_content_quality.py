@@ -17,34 +17,14 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from scripts.resume_shared import (  # noqa: E402
     collect_bullets,
-    has_quantified_result,
     load_json_file,
+    starts_with_action_verb,
     validate_resume_content,
 )
 
-STRONG_VERBS: set[str] = {
-    "achieved", "built", "created", "delivered", "designed",
-    "developed", "drove", "enabled", "engineered", "established",
-    "executed", "expanded", "generated", "grew", "headed",
-    "identified", "implemented", "improved", "increased", "initiated",
-    "integrated", "introduced", "launched", "led", "managed",
-    "migrated", "modernized", "optimized", "orchestrated", "overhauled",
-    "pioneered", "proposed", "reduced", "redesigned", "refactored",
-    "resolved", "revamped", "scaled", "secured", "simplified",
-    "spearheaded", "standardized", "streamlined", "strengthened",
-    "supervised", "transformed", "unified", "upgraded",
-    "accelerated", "automated",
-}
-
 _MAX_BULLET_WORDS = 28
 _VERB_PASS_THRESHOLD = 0.60
-_QUANT_WARN_THRESHOLD = 0.40
-_QUANT_GOOD_THRESHOLD = 0.60
 _NGRAM_REPEAT_THRESHOLD = 3
-_EXP_BULLET_MIN = 8
-_EXP_BULLET_MAX = 14
-_EST_CHARS_PER_LINE = 95
-_LINE_FILL_MIN_RATIO = 0.50
 
 
 def check_bullet_length(bullets: list[str]) -> dict[str, str]:
@@ -73,9 +53,9 @@ def check_bullet_starts_with_verb(bullets: list[str]) -> dict[str, str]:
         return {"name": "bullet_verb_start", "status": "PASS", "detail": "No bullets to check"}
     weak: list[str] = []
     for b in bullets:
-        words = b.split()
-        first_word = words[0].lower().rstrip(".,;:") if words else ""
-        if first_word not in STRONG_VERBS:
+        if not starts_with_action_verb(b):
+            words = b.split()
+            first_word = words[0].lower().rstrip(".,;:") if words else ""
             weak.append(f"{first_word}: {b[:60]}")
     ratio = 1.0 - len(weak) / len(bullets) if bullets else 1.0
     if ratio < _VERB_PASS_THRESHOLD:
@@ -91,31 +71,6 @@ def check_bullet_starts_with_verb(bullets: list[str]) -> dict[str, str]:
         "name": "bullet_verb_start",
         "status": "PASS",
         "detail": f"{len(bullets) - len(weak)}/{len(bullets)} bullets ({ratio * 100:.0f}%) start with a strong verb",
-    }
-
-
-def check_quantification_ratio(bullets: list[str]) -> dict[str, str]:
-    """Check ratio of bullets containing numeric data."""
-    if not bullets:
-        return {"name": "quantification_ratio", "status": "PASS", "detail": "No bullets to check"}
-    with_numbers = sum(1 for b in bullets if has_quantified_result(b))
-    ratio = with_numbers / len(bullets)
-    if ratio < _QUANT_WARN_THRESHOLD:
-        return {
-            "name": "quantification_ratio",
-            "status": "WARN",
-            "detail": f"{with_numbers}/{len(bullets)} ({ratio * 100:.0f}%) bullets contain numbers (target >= 40%)",
-        }
-    if ratio < _QUANT_GOOD_THRESHOLD:
-        return {
-            "name": "quantification_ratio",
-            "status": "PASS",
-            "detail": f"{with_numbers}/{len(bullets)} ({ratio * 100:.0f}%) bullets contain numbers (could improve to 60%+)",
-        }
-    return {
-        "name": "quantification_ratio",
-        "status": "PASS",
-        "detail": f"{with_numbers}/{len(bullets)} ({ratio * 100:.0f}%) bullets contain numbers",
     }
 
 
@@ -142,47 +97,26 @@ def check_duplicate_phrases(bullets: list[str]) -> dict[str, str]:
     }
 
 
-def check_bullet_line_fill(bullets: list[str]) -> dict[str, str]:
-    """Check that wrapped bullets have a last line filling ≥50% of line width."""
-    fill_threshold = _EST_CHARS_PER_LINE * _LINE_FILL_MIN_RATIO
-    sparse: list[str] = []
-    for b in bullets:
-        if len(b) <= _EST_CHARS_PER_LINE:
-            continue
-        last_line_chars = len(b) % _EST_CHARS_PER_LINE
-        if last_line_chars == 0:
-            continue
-        if last_line_chars < fill_threshold:
-            sparse.append(b[:80])
-    if sparse:
+def check_bullet_density(experience: list[dict[str, Any]]) -> dict[str, str]:
+    """Review experience density relative to the number of entries."""
+    entry_count = len(experience)
+    bullet_count = sum(len(entry.get("bullets", [])) for entry in experience)
+    if entry_count == 0:
         return {
-            "name": "bullet_line_fill",
-            "status": "WARN",
-            "detail": (
-                f"{len(sparse)} bullet(s) have a sparse last line (<50% fill): "
-                + "; ".join(sparse)
-            ),
-        }
-    return {
-        "name": "bullet_line_fill",
-        "status": "PASS",
-        "detail": "Estimated wrapped bullets have ≥50% last-line fill",
-    }
-
-
-def check_bullet_count(exp_bullets: list[str]) -> dict[str, str]:
-    """Check that experience bullet count is within 8-14."""
-    count = len(exp_bullets)
-    if _EXP_BULLET_MIN <= count <= _EXP_BULLET_MAX:
-        return {
-            "name": "bullet_count",
+            "name": "bullet_density",
             "status": "PASS",
-            "detail": f"{count} experience bullets (target {_EXP_BULLET_MIN}-{_EXP_BULLET_MAX})",
+            "detail": "No experience entries to review",
         }
+    minimum = max(3, entry_count * 2)
+    maximum = entry_count * 6
+    status = "PASS" if minimum <= bullet_count <= maximum else "WARN"
     return {
-        "name": "bullet_count",
-        "status": "WARN",
-        "detail": f"{count} experience bullets (target {_EXP_BULLET_MIN}-{_EXP_BULLET_MAX})",
+        "name": "bullet_density",
+        "status": status,
+        "detail": (
+            f"{bullet_count} bullets across {entry_count} experience entries "
+            f"(contextual range {minimum}-{maximum})"
+        ),
     }
 
 
@@ -192,15 +126,11 @@ def run_all_checks(resume: dict[str, Any] | Path) -> list[dict[str, str]]:
         resume = load_json_file(resume)
     validate_resume_content(resume, require_non_empty=True)
     all_bullets = collect_bullets(resume, include_projects=True)
-    exp_bullets = collect_bullets(resume, include_projects=False)
-
     return [
         check_bullet_length(all_bullets),
         check_bullet_starts_with_verb(all_bullets),
-        check_quantification_ratio(all_bullets),
         check_duplicate_phrases(all_bullets),
-        check_bullet_count(exp_bullets),
-        check_bullet_line_fill(all_bullets),
+        check_bullet_density(resume.get("experience", [])),
     ]
 
 
@@ -223,7 +153,13 @@ def main() -> int:
         passed = sum(1 for r in results if r["status"] == "PASS")
         total = len(results)
         for r in results:
-            icon = "\u2713" if r["status"] == "PASS" else "\u26a0" if r["status"] == "WARN" else "\u2717"
+            icon = (
+                "\u2713"
+                if r["status"] == "PASS"
+                else "\u26a0"
+                if r["status"] == "WARN"
+                else "\u2717"
+            )
             print(f"  {icon} [{r['status']}] {r['name']}: {r['detail']}")
         print(f"\nContent QC: {passed}/{total} checks passed")
 

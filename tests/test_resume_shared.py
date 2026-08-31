@@ -22,9 +22,9 @@ class ResumeSharedTests(unittest.TestCase):
         self.assertTrue(has_quantified_result("Reduced latency by 40%"))
         self.assertTrue(has_quantified_result("Cut response time to 25 ms"))
 
-    def test_four_element_score_requires_action_method_and_result(self) -> None:
+    def test_complete_bullet_structure_does_not_require_a_number(self) -> None:
         complete = score_bullet(
-            "Built Kubernetes services using Terraform, reducing latency by 40%.",
+            "Built Kubernetes services using Terraform, improving deployment reliability.",
             ["Kubernetes"],
             [],
             [],
@@ -36,6 +36,7 @@ class ResumeSharedTests(unittest.TestCase):
             [],
         )
         self.assertTrue(complete["has_four_elements"])
+        self.assertFalse(complete["has_quantification"])
         self.assertFalse(incomplete["has_four_elements"])
 
     def test_validator_rejects_non_string_fields(self) -> None:

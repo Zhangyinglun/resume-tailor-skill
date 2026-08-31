@@ -292,7 +292,7 @@ The Tailored Resume evolves the Skills display contract from a comma-delimited s
 }
 ```
 
-Readers, validators, and renderers must continue accepting the legacy string form. Legacy input is normalized to a list before planning or auditing. Rendering joins the list with `, ` and does not expose evidence metadata in the Tailored Resume.
+Readers, validators, and renderers must continue accepting the legacy string form. Legacy input is normalized to a list before planning or auditing. Rendering joins the list with `,` and does not expose evidence metadata in the Tailored Resume.
 
 A Skill item may appear only if at least one condition holds:
 

@@ -26,6 +26,7 @@ from scripts.resume_shared import (  # noqa: E402
 CACHE_REL_PATH = Path("cache") / "resume-working.json"
 BASE_TEMPLATE_REL_PATH = Path("cache") / "base-resume.json"
 JD_ANALYSIS_REL_PATH = Path("cache") / "jd-analysis.json"
+TAILORING_MANIFEST_REL_PATH = Path("cache") / "resume-changes.json"
 _LEGACY_PATHS = (
     Path("cache") / "resume-working.md",
     Path("cache") / "base-resume.md",
@@ -66,6 +67,10 @@ def get_jd_analysis_path(workspace: Path) -> Path:
 _JD_REQUIRED_KEYS = ("position", "keywords", "alignment")
 
 _JD_KEYWORDS_REQUIRED = ("P1", "P2", "P3")
+_MATCH_TYPES = {"direct", "semantic_equivalent", "transferable", "gap"}
+_EVIDENCE_STATES = {
+    "sourced", "candidate_confirmed", "needs_confirmation", "unsupported"
+}
 
 
 def validate_jd_analysis(payload: dict[str, Any]) -> None:
@@ -99,10 +104,28 @@ def validate_jd_analysis(payload: dict[str, Any]) -> None:
                     "or an object with a non-empty `term`."
                 )
 
+    capabilities = payload.get("capabilities")
+    if not isinstance(capabilities, list):
+        raise ValueError("`capabilities` must be an array.")
+    for index, capability in enumerate(capabilities):
+        if not isinstance(capability, dict):
+            raise ValueError(f"capabilities[{index}] must be an object.")
+        for field in ("capability_id", "priority", "name", "match_type", "evidence_state", "claim_ids"):
+            if field not in capability:
+                raise ValueError(f"capabilities[{index}] missing required field: {field}")
+        if capability["priority"] not in _JD_KEYWORDS_REQUIRED:
+            raise ValueError(f"capabilities[{index}].priority must be P1, P2, or P3.")
+        if capability["match_type"] not in _MATCH_TYPES:
+            raise ValueError(f"capabilities[{index}].match_type is invalid.")
+        if capability["evidence_state"] not in _EVIDENCE_STATES:
+            raise ValueError(f"capabilities[{index}].evidence_state is invalid.")
+        if not isinstance(capability["claim_ids"], list):
+            raise ValueError(f"capabilities[{index}].claim_ids must be an array.")
+
     align = payload["alignment"]
     if not isinstance(align, dict):
         raise ValueError("`alignment` must be an object.")
-    for field in ("matched", "gaps"):
+    for field in ("matched", "transferable", "gaps"):
         if field not in align:
             raise ValueError(f"alignment missing required field: {field}")
         if not isinstance(align[field], list):
@@ -124,7 +147,11 @@ def read_jd_analysis(workspace: Path) -> dict[str, Any]:
 
 def reset_cache_on_start(workspace: Path) -> bool:
     removed = False
-    paths = [workspace / CACHE_REL_PATH, workspace / JD_ANALYSIS_REL_PATH] + [workspace / p for p in _LEGACY_PATHS]
+    paths = [
+        workspace / CACHE_REL_PATH,
+        workspace / JD_ANALYSIS_REL_PATH,
+        workspace / TAILORING_MANIFEST_REL_PATH,
+    ] + [workspace / p for p in _LEGACY_PATHS]
     for path in paths:
         if path.exists():
             path.unlink()

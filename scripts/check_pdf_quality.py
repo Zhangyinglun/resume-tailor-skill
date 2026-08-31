@@ -17,6 +17,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from scripts.check_pdf_geometry import (  # noqa: E402
+    check_pdf_geometry,
+)
 from scripts.resume_shared import term_matches  # noqa: E402
 
 A4_WIDTH_MM = 210.0
@@ -59,34 +62,60 @@ def parse_args() -> argparse.Namespace:
         help="Core keywords (can be repeated, use multiple --keyword flags)",
     )
     parser.add_argument(
-        "--min-bottom-mm", type=float, default=3.0,
+        "--min-bottom-mm",
+        type=float,
+        default=3.0,
         help="Minimum bottom margin (mm, default 3)",
     )
     parser.add_argument(
-        "--max-bottom-mm", type=float, default=8.0,
+        "--max-bottom-mm",
+        type=float,
+        default=8.0,
         help="Maximum bottom margin (mm, default 8)",
     )
     parser.add_argument(
-        "--min-top-mm", type=float, default=3.0,
+        "--min-top-mm",
+        type=float,
+        default=3.0,
         help="Minimum top margin (mm, default 3)",
     )
     parser.add_argument(
-        "--max-top-mm", type=float, default=20.0,
+        "--max-top-mm",
+        type=float,
+        default=20.0,
         help="Maximum top margin (mm, default 20)",
     )
     parser.add_argument(
-        "--min-side-mm", type=float, default=10.0,
+        "--min-side-mm",
+        type=float,
+        default=10.0,
         help="Minimum left/right margin (mm, default 10)",
     )
     parser.add_argument(
-        "--max-side-mm", type=float, default=25.0,
+        "--max-side-mm",
+        type=float,
+        default=25.0,
         help="Maximum left/right margin (mm, default 25)",
     )
     parser.add_argument(
-        "--json", action="store_true", dest="json_output",
+        "--json",
+        action="store_true",
+        dest="json_output",
         help="Output results as JSON (machine-readable)",
     )
     return parser.parse_args()
+
+
+def _word_coordinates(words: list[dict[str, Any]]) -> dict[str, list[float]]:
+    """Collect numeric word coordinates, skipping malformed entries."""
+    coords: dict[str, list[float]] = {"top": [], "bottom": [], "x0": [], "x1": []}
+    for word in words:
+        for key in coords:
+            try:
+                coords[key].append(float(word[key]))
+            except (KeyError, TypeError, ValueError):
+                continue
+    return coords
 
 
 def estimate_page_margins_mm(page: Any) -> dict[str, float] | None:
@@ -94,19 +123,15 @@ def estimate_page_margins_mm(page: Any) -> dict[str, float] | None:
     if not words:
         return None
 
-    tops = [float(w["top"]) for w in words if "top" in w]
-    bottoms = [float(w["bottom"]) for w in words if "bottom" in w]
-    lefts = [float(w["x0"]) for w in words if "x0" in w]
-    rights = [float(w["x1"]) for w in words if "x1" in w]
-
-    if not tops or not bottoms or not lefts or not rights:
+    coords = _word_coordinates(words)
+    if not all(coords.values()):
         return None
 
     return {
-        "top": points_to_mm(min(tops)),
-        "bottom": points_to_mm(page.height - max(bottoms)),
-        "left": points_to_mm(min(lefts)),
-        "right": points_to_mm(page.width - max(rights)),
+        "top": points_to_mm(min(coords["top"])),
+        "bottom": points_to_mm(page.height - max(coords["bottom"])),
+        "left": points_to_mm(min(coords["x0"])),
+        "right": points_to_mm(page.width - max(coords["x1"])),
     }
 
 
@@ -125,35 +150,44 @@ def build_quality_report(
     provided_keywords: list[str],
     layout_warnings: list[str],
     margin_thresholds: dict[str, float],
+    geometry_findings: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
 
-    checks.append({
-        "name": "page_count",
-        "passed": page_count == 1,
-        "detail": {"count": page_count, "expected": 1},
-    })
+    checks.append(
+        {
+            "name": "page_count",
+            "passed": page_count == 1,
+            "detail": {"count": page_count, "expected": 1},
+        }
+    )
 
-    checks.append({
-        "name": "page_size",
-        "passed": (
-            abs(width_mm - A4_WIDTH_MM) <= A4_TOLERANCE_MM
-            and abs(height_mm - A4_HEIGHT_MM) <= A4_TOLERANCE_MM
-        ),
-        "detail": {"width_mm": round(width_mm, 1), "height_mm": round(height_mm, 1)},
-    })
+    checks.append(
+        {
+            "name": "page_size",
+            "passed": (
+                abs(width_mm - A4_WIDTH_MM) <= A4_TOLERANCE_MM
+                and abs(height_mm - A4_HEIGHT_MM) <= A4_TOLERANCE_MM
+            ),
+            "detail": {"width_mm": round(width_mm, 1), "height_mm": round(height_mm, 1)},
+        }
+    )
 
     checks.append({"name": "text_layer", "passed": has_text, "detail": {}})
-    checks.append({
-        "name": "html_leak",
-        "passed": html_leak_count == 0,
-        "detail": {"leak_count": html_leak_count},
-    })
-    checks.append({
-        "name": "placeholder_content",
-        "passed": len(placeholders) == 0,
-        "detail": {"count": len(placeholders), "found": sorted(set(placeholders))},
-    })
+    checks.append(
+        {
+            "name": "html_leak",
+            "passed": html_leak_count == 0,
+            "detail": {"leak_count": html_leak_count},
+        }
+    )
+    checks.append(
+        {
+            "name": "placeholder_content",
+            "passed": len(placeholders) == 0,
+            "detail": {"count": len(placeholders), "found": sorted(set(placeholders))},
+        }
+    )
 
     # Margin checks
     margin_detail: dict[str, Any] = {"available": margins is not None}
@@ -165,17 +199,19 @@ def build_quality_report(
         margin_ok["top"] = margins["top"] >= margin_thresholds["min_top_mm"]
         margin_ok["left"] = margins["left"] >= margin_thresholds["min_side_mm"]
         margin_ok["right"] = margins["right"] >= margin_thresholds["min_side_mm"]
-        margin_detail.update({
-            f"{side}_mm": round(margins[side], 2) for side in ("top", "bottom", "left", "right")
-        })
-        margin_detail.update({
-            "min_bottom_mm": margin_thresholds["min_bottom_mm"],
-            "preferred_max_bottom_mm": margin_thresholds["max_bottom_mm"],
-            "min_top_mm": margin_thresholds["min_top_mm"],
-            "preferred_max_top_mm": margin_thresholds["max_top_mm"],
-            "min_side_mm": margin_thresholds["min_side_mm"],
-            "preferred_max_side_mm": margin_thresholds["max_side_mm"],
-        })
+        margin_detail.update(
+            {f"{side}_mm": round(margins[side], 2) for side in ("top", "bottom", "left", "right")}
+        )
+        margin_detail.update(
+            {
+                "min_bottom_mm": margin_thresholds["min_bottom_mm"],
+                "preferred_max_bottom_mm": margin_thresholds["max_bottom_mm"],
+                "min_top_mm": margin_thresholds["min_top_mm"],
+                "preferred_max_top_mm": margin_thresholds["max_top_mm"],
+                "min_side_mm": margin_thresholds["min_side_mm"],
+                "preferred_max_side_mm": margin_thresholds["max_side_mm"],
+            }
+        )
         for side, maximum_key in (
             ("bottom", "max_bottom_mm"),
             ("top", "max_top_mm"),
@@ -191,32 +227,59 @@ def build_quality_report(
 
     checks.append({"name": "bottom_margin", "passed": margin_ok["bottom"], "detail": margin_detail})
     checks.append({"name": "top_margin", "passed": margin_ok["top"], "detail": margin_detail})
-    checks.append({"name": "side_margins", "passed": margin_ok["left"] and margin_ok["right"], "detail": margin_detail})
+    checks.append(
+        {
+            "name": "side_margins",
+            "passed": margin_ok["left"] and margin_ok["right"],
+            "detail": margin_detail,
+        }
+    )
 
-    checks.append({
-        "name": "section_completeness",
-        "passed": not missing_sections,
-        "detail": {"missing": missing_sections},
-    })
+    checks.append(
+        {
+            "name": "section_completeness",
+            "passed": not missing_sections,
+            "detail": {"missing": missing_sections},
+        }
+    )
 
-    contact_ok = contact.get("email", False) and (contact.get("phone", False) or contact.get("linkedin", False))
-    checks.append({
-        "name": "contact_info",
-        "passed": contact_ok,
-        "detail": contact,
-    })
+    contact_ok = contact.get("email", False) and (
+        contact.get("phone", False) or contact.get("linkedin", False)
+    )
+    checks.append(
+        {
+            "name": "contact_info",
+            "passed": contact_ok,
+            "detail": contact,
+        }
+    )
 
-    checks.append({
-        "name": "keyword_coverage",
-        "passed": (not provided_keywords) or (not missing_keywords),
-        "detail": {"provided": len(provided_keywords), "missing": missing_keywords},
-    })
+    checks.append(
+        {
+            "name": "keyword_coverage",
+            "passed": (not provided_keywords) or (not missing_keywords),
+            "detail": {"provided": len(provided_keywords), "missing": missing_keywords},
+        }
+    )
 
-    checks.append({
-        "name": "layout_warnings",
-        "passed": True,
-        "detail": {"warnings": warnings},
-    })
+    checks.append(
+        {
+            "name": "layout_warnings",
+            "passed": True,
+            "detail": {"warnings": warnings},
+        }
+    )
+    geometry = geometry_findings or []
+    checks.append(
+        {
+            "name": "text_geometry",
+            "passed": not geometry,
+            "detail": {
+                "sparse_trailing_line_count": len(geometry),
+                "findings": geometry,
+            },
+        }
+    )
 
     _NON_CRITICAL_CHECKS = {"layout_warnings"}
     critical_pass = all(c["passed"] for c in checks if c["name"] not in _NON_CRITICAL_CHECKS)
@@ -230,16 +293,30 @@ def _format_text_report(report: dict[str, Any], pdf_name: str, args: argparse.Na
 
     # Simple pass/fail checks
     _simple = [
-        ("1. Page Count", "page_count",
-         lambda d: "1 page", lambda d: f"Current {d['count']} pages (should be 1 page)"),
-        ("2. Page Size", "page_size",
-         lambda d: f"A4 ({d['width_mm']}mm x {d['height_mm']}mm)",
-         lambda d: f"Not A4 ({d['width_mm']}mm x {d['height_mm']}mm)"),
-        ("3. Text Layer", "text_layer",
-         lambda _: "Extractable text", lambda _: "No body text extracted"),
-        ("4. HTML Tag Leakage", "html_leak",
-         lambda _: "No leakage found",
-         lambda d: f"Found {d['leak_count']} suspected HTML tags"),
+        (
+            "1. Page Count",
+            "page_count",
+            lambda d: "1 page",
+            lambda d: f"Current {d['count']} pages (should be 1 page)",
+        ),
+        (
+            "2. Page Size",
+            "page_size",
+            lambda d: f"A4 ({d['width_mm']}mm x {d['height_mm']}mm)",
+            lambda d: f"Not A4 ({d['width_mm']}mm x {d['height_mm']}mm)",
+        ),
+        (
+            "3. Text Layer",
+            "text_layer",
+            lambda _: "Extractable text",
+            lambda _: "No body text extracted",
+        ),
+        (
+            "4. HTML Tag Leakage",
+            "html_leak",
+            lambda _: "No leakage found",
+            lambda d: f"Found {d['leak_count']} suspected HTML tags",
+        ),
     ]
     for label, name, ok_msg, fail_msg in _simple:
         c = checks[name]
@@ -253,13 +330,17 @@ def _format_text_report(report: dict[str, Any], pdf_name: str, args: argparse.Na
         lines.append("5. Placeholder Content: \u2713 No placeholder content found")
     else:
         found = ", ".join(ph["detail"]["found"])
-        lines.append(f"5. Placeholder Content: \u2717 Found {ph['detail']['count']} placeholder(s): {found}")
+        lines.append(
+            f"5. Placeholder Content: \u2717 Found {ph['detail']['count']} placeholder(s): {found}"
+        )
 
     # Margins
     margin_detail = checks["bottom_margin"]["detail"]
     if not margin_detail.get("available"):
         for i, label in [(6, "Bottom Margin"), (7, "Top Margin"), (8, "Left/Right Margins")]:
-            lines.append(f"{i}. {label}: ! Unable to auto-estimate (manual verification recommended)")
+            lines.append(
+                f"{i}. {label}: ! Unable to auto-estimate (manual verification recommended)"
+            )
     else:
         for i, name, side, lo, hi in [
             (6, "bottom_margin", "bottom", args.min_bottom_mm, args.max_bottom_mm),
@@ -285,14 +366,22 @@ def _format_text_report(report: dict[str, Any], pdf_name: str, args: argparse.Na
     # Sections
     sc = checks["section_completeness"]
     if sc["passed"]:
-        lines.append("9. Section Completeness: \u2713 Summary/Skills/Experience/Education all identified")
+        lines.append(
+            "9. Section Completeness: \u2713 Summary/Skills/Experience/Education all identified"
+        )
     else:
-        lines.append(f"9. Section Completeness: \u2717 Missing sections: {', '.join(sc['detail']['missing'])}")
+        lines.append(
+            f"9. Section Completeness: \u2717 Missing sections: {', '.join(sc['detail']['missing'])}"
+        )
 
     # Contact
     cc = checks["contact_info"]
     mark = "\u2713" if cc["passed"] else "\u2717"
-    msg = "Detected Email + (Phone or LinkedIn)" if cc["passed"] else "Incomplete contact info (need at least Email + Phone/LinkedIn)"
+    msg = (
+        "Detected Email + (Phone or LinkedIn)"
+        if cc["passed"]
+        else "Incomplete contact info (need at least Email + Phone/LinkedIn)"
+    )
     lines.append(f"10. Contact Info: {mark} {msg}")
 
     # Keywords
@@ -302,7 +391,9 @@ def _format_text_report(report: dict[str, Any], pdf_name: str, args: argparse.Na
     elif kw["passed"]:
         lines.append(f"11. Keyword Coverage: \u2713 All {len(args.keyword)} keywords matched")
     else:
-        lines.append(f"11. Keyword Coverage: \u2717 Missing keywords: {', '.join(kw['detail']['missing'])}")
+        lines.append(
+            f"11. Keyword Coverage: \u2717 Missing keywords: {', '.join(kw['detail']['missing'])}"
+        )
 
     # Layout warnings
     lw = checks["layout_warnings"]
@@ -312,6 +403,15 @@ def _format_text_report(report: dict[str, Any], pdf_name: str, args: argparse.Na
             lines.append(f"   - {issue}")
     else:
         lines.append("12. Layout Warnings: \u2713 No obvious issues found")
+
+    geometry = checks["text_geometry"]
+    if geometry["passed"]:
+        lines.append("13. Text Geometry: \u2713 No sparse 1-3 word bullet endings detected")
+    else:
+        lines.append(
+            "13. Text Geometry: \u2717 "
+            f"{geometry['detail']['sparse_trailing_line_count']} sparse trailing line(s)"
+        )
 
     lines.append("=" * 80)
     lines.append(f"Final Verdict: {report['verdict']}")
@@ -352,18 +452,30 @@ def check_pdf_file(
 
         upper_text = full_text.upper()
         missing_sections = [
-            name for name, options in SECTION_KEYWORDS.items()
+            name
+            for name, options in SECTION_KEYWORDS.items()
             if not any(opt in upper_text for opt in options)
         ]
 
         layout_warnings: list[str] = []
         role_time = re.compile(r"^[A-Za-z][A-Za-z/&,\-\s]{2,70}\s+\d{4}\s*-\s*(?:\d{4}|Present)$")
-        company_hint = re.compile(r"(?:Inc\.?|LLC|Ltd\.?|Corp\.?|Company|University|College|Institute)", re.IGNORECASE)
+        company_hint = re.compile(
+            r"(?:Inc\.?|LLC|Ltd\.?|Corp\.?|Company|University|College|Institute)", re.IGNORECASE
+        )
         for i, line in enumerate(lines[:-1]):
             if role_time.match(line) and company_hint.search(lines[i + 1]) and "|" not in line:
-                layout_warnings.append(f"Suspected inverted experience entry: {line} -> {lines[i + 1]}")
+                layout_warnings.append(
+                    f"Suspected inverted experience entry: {line} -> {lines[i + 1]}"
+                )
             if line == lines[i + 1]:
                 layout_warnings.append(f"Found consecutive duplicate line: {line}")
+
+        geometry_report = check_pdf_geometry(pdf_path)
+        geometry_findings = [
+            {"page": page["page"], **finding}
+            for page in geometry_report["pages"]
+            for finding in page["sparse_trailing_lines"]
+        ]
 
         return build_quality_report(
             page_count=len(pdf.pages),
@@ -380,13 +492,12 @@ def check_pdf_file(
                 "linkedin": bool(LINKEDIN_PATTERN.search(contact_text)),
             },
             missing_keywords=[
-                keyword
-                for keyword in kw_list
-                if not term_matches(full_text, keyword)
+                keyword for keyword in kw_list if not term_matches(full_text, keyword)
             ],
             provided_keywords=kw_list,
             layout_warnings=layout_warnings,
             margin_thresholds=thresholds,
+            geometry_findings=geometry_findings,
         )
 
 

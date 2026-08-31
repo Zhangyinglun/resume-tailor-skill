@@ -24,3 +24,4 @@ raw_resume.txt
 # Claude Code local config (keep .claude/commands/ tracked)
 .claude/settings.local.json
 .claude/worktrees/
+.local/agent-work/

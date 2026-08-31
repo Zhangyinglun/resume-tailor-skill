@@ -21,6 +21,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from scripts.audit_factual_integrity import audit_resume  # noqa: E402
 from scripts.check_content_quality import run_all_checks  # noqa: E402
 from scripts.resume_cache_manager import validate_jd_analysis  # noqa: E402
 from scripts.resume_shared import (  # noqa: E402
@@ -184,6 +185,52 @@ def format_content_checks_section(checks: list[dict[str, str]]) -> str:
     return "\n".join(lines)
 
 
+def format_factual_audit_section(factual_report: dict[str, Any]) -> str:
+    lines = ["### Factual Integrity", ""]
+    coverage = factual_report.get("coverage", {})
+    lines.append(f"- Verdict: **{_md_cell(factual_report.get('verdict', 'UNKNOWN'))}**")
+    lines.append(
+        "- Manifest coverage: "
+        f"{coverage.get('covered_fields', 0)}/{coverage.get('total_fields', 0)} "
+        f"({coverage.get('coverage_percent', 0)}%)"
+    )
+    findings = factual_report.get("findings", [])
+    if findings:
+        lines.extend(["", "| Code | Path | Finding |", "|---|---|---|"])
+        for finding in findings:
+            lines.append(
+                f"| {_md_cell(finding.get('code', ''))} | "
+                f"{_md_cell(finding.get('path', ''))} | "
+                f"{_md_cell(finding.get('message', ''))} |"
+            )
+    else:
+        lines.append("- All substantive fields are linked to active evidence.")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def format_capability_alignment_section(jd_analysis: dict[str, Any]) -> str:
+    lines = ["### JD Capability Alignment", ""]
+    capabilities = jd_analysis.get("capabilities", [])
+    if not capabilities:
+        lines.extend(["_No structured capabilities provided._", ""])
+        return "\n".join(lines)
+    lines.extend([
+        "| Priority | Capability | Match | Evidence | Claims |",
+        "|---|---|---|---|---|",
+    ])
+    for capability in capabilities:
+        lines.append(
+            f"| {_md_cell(capability.get('priority', ''))} | "
+            f"{_md_cell(capability.get('name', ''))} | "
+            f"{_md_cell(capability.get('match_type', ''))} | "
+            f"{_md_cell(capability.get('evidence_state', ''))} | "
+            f"{_md_cell(', '.join(str(item) for item in capability.get('claim_ids', [])) or '—')} |"
+        )
+    lines.append("")
+    return "\n".join(lines)
+
+
 def _format_pdf_checks_section(pdf_report: dict[str, Any]) -> str:
     lines = ["### Format Compliance", ""]
     lines.append("| Check | Status | Detail |")
@@ -245,9 +292,13 @@ def generate_report(
     jd_analysis: dict[str, Any] | None,
     *,
     pdf_report: dict[str, Any] | None = None,
+    factual_report: dict[str, Any] | None = None,
 ) -> str:
     """Build and return the full quality report as a Markdown string."""
     sections = ["## Quality Check Report", ""]
+
+    if factual_report is not None:
+        sections.append(format_factual_audit_section(factual_report))
 
     # Format compliance (PDF, optional)
     if pdf_report is not None:
@@ -258,6 +309,7 @@ def generate_report(
 
     # Keyword coverage
     if jd_analysis is not None:
+        sections.append(format_capability_alignment_section(jd_analysis))
         coverage = build_keyword_coverage(resume, jd_analysis)
         sections.append(format_coverage_section(coverage))
         sections.append(_format_strategy_summary(coverage))
@@ -278,6 +330,9 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--resume", required=True, help="Path to resume-working.json")
     parser.add_argument("--jd-analysis", dest="jd_analysis", help="Path to jd-analysis.json")
     parser.add_argument("--pdf", help="Path to generated PDF (optional, for format checks)")
+    parser.add_argument("--manifest", help="Path to resume-changes.json")
+    parser.add_argument("--evidence", help="Path to candidate-evidence.json")
+    parser.add_argument("--base", help="Path to base-resume.json")
     return parser.parse_args()
 
 
@@ -311,6 +366,26 @@ def main() -> int:
             print(f"Warning: jd-analysis file not found: {jd_path}", file=sys.stderr)
             incomplete_inputs = True
 
+    factual_report: dict[str, Any] | None = None
+    factual_paths = (args.manifest, args.evidence, args.base)
+    if any(factual_paths):
+        if not all(factual_paths):
+            print(
+                "Error: --manifest, --evidence, and --base must be provided together.",
+                file=sys.stderr,
+            )
+            return 1
+        try:
+            factual_report = audit_resume(
+                resume,
+                load_json_file(Path(args.manifest).expanduser().resolve()),
+                load_json_file(Path(args.evidence).expanduser().resolve()),
+                base_resume=load_json_file(Path(args.base).expanduser().resolve()),
+            )
+        except (OSError, ValueError) as exc:
+            print(f"Error: factual audit failed: {exc}", file=sys.stderr)
+            return 1
+
     pdf_report: dict[str, Any] | None = None
     if args.pdf:
         pdf_path = Path(args.pdf).expanduser().resolve()
@@ -326,12 +401,20 @@ def main() -> int:
             incomplete_inputs = True
 
     content_checks = run_all_checks(resume)
-    print(generate_report(resume, jd_analysis, pdf_report=pdf_report))
+    print(
+        generate_report(
+            resume,
+            jd_analysis,
+            pdf_report=pdf_report,
+            factual_report=factual_report,
+        )
+    )
     content_ok = all(item.get("status") == "PASS" for item in content_checks)
     pdf_ok = pdf_report is None or pdf_report.get("verdict") == "PASS"
+    factual_ok = factual_report is None or factual_report.get("verdict") == "PASS"
     if incomplete_inputs:
         return 1
-    return 0 if content_ok and pdf_ok else 2
+    return 0 if content_ok and pdf_ok and factual_ok else 2
 
 
 if __name__ == "__main__":

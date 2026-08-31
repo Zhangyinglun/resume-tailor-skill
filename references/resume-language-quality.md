@@ -17,6 +17,10 @@ Use this checklist after factual tailoring and before PDF generation.
 - Avoid keyword stuffing, promotional adjectives, first-person narration, and generic soft-skill claims.
 - Vary sentence structure without cycling through artificial synonyms.
 
+## Semantic Normalization
+
+Use an industry term automatically only when the active claims strictly entail it. Declare the term and basis in the Tailoring Manifest. A normalization never introduces a different tool, broader scope, higher ownership, new metric, production status, or completion state.
+
 ## Final Pass
 
-Check tense consistency, acronym expansion, punctuation, repeated openings, unsupported superlatives, and responsibility-boundary drift. If a stronger claim needs missing evidence, record a clarification question instead of guessing.
+Check tense consistency, acronym expansion, punctuation, repeated openings, unsupported superlatives, and responsibility-boundary drift. If a stronger claim needs missing evidence, record a clarification question instead of guessing. Keep protected attributes outside capability matching and tailoring decisions.

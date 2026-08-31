@@ -17,6 +17,9 @@ class ExternalEntrypointTests(unittest.TestCase):
             "extract_resume_text.py",
             "generate_final_resume.py",
             "check_pdf_quality.py",
+            "check_pdf_geometry.py",
+            "evidence_ledger_manager.py",
+            "audit_factual_integrity.py",
         )
         with tempfile.TemporaryDirectory() as temp_dir:
             for script in scripts:

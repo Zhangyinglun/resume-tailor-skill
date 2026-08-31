@@ -15,8 +15,9 @@ Codex-facing instructions for the distributable `resume-tailor` Skill package.
 1. Read `SKILL.md`.
 2. Resolve the repository directory as `RESUME_TAILOR_DIR` and the user's active directory as `USER_WORKSPACE`.
 3. Use `scripts/extract_resume_text.py` for PDF, DOCX, Markdown, or text input.
-4. Manage cache through `scripts/resume_cache_manager.py` with an explicit `--workspace`.
-5. Generate through `scripts/generate_final_resume.py` and validate through the quality scripts.
+4. Manage candidate facts through `scripts/evidence_ledger_manager.py` and projection cache through `scripts/resume_cache_manager.py`, always with an explicit external workspace.
+5. Run `scripts/audit_factual_integrity.py` before rendering. `scripts/generate_final_resume.py` enforces the same audit and requires the manifest, evidence ledger, and Source Snapshot.
+6. Read `CONTEXT.md` for domain language and `references/resume-working-schema.md` for data contracts before changing evidence or manifest behavior.
 
 ## Development Checks
 

@@ -16,7 +16,9 @@ from templates.layout_settings import LayoutSettings
 from templates.modern_resume_template import generate_resume
 
 # Checks that layout tuning can potentially fix (margins, page overflow).
-LAYOUT_FIXABLE_CHECKS = {"page_count", "bottom_margin", "top_margin", "side_margins"}
+LAYOUT_FIXABLE_CHECKS = {
+    "page_count", "bottom_margin", "top_margin", "side_margins", "text_geometry"
+}
 
 # Checks that require content changes — layout tuning cannot fix these.
 CONTENT_CHECKS = {

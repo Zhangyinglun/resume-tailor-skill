@@ -4,10 +4,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 REQUIRED_KEYS = ("name", "contact", "summary", "skills", "experience", "education")
 
@@ -21,15 +22,78 @@ _QUANTIFIED_RESULT_PATTERNS = (
         r"\d+(?:\.\d+)?\s*(?:users?|customers?|requests?|transactions?|records?|events?|services?|engineers?|people|deployments?)",
         re.IGNORECASE,
     ),
-    re.compile(r"(?:from\s+\d+(?:\.\d+)?\s+to\s+\d+(?:\.\d+)?|\d+(?:\.\d+)?\s*(?:uptime|latency|revenue|cost))", re.IGNORECASE),
+    re.compile(
+        r"(?:from\s+\d+(?:\.\d+)?\s+to\s+\d+(?:\.\d+)?|\d+(?:\.\d+)?\s*(?:uptime|latency|revenue|cost))",
+        re.IGNORECASE,
+    ),
 )
 
+ACTION_VERBS: frozenset[str] = frozenset(
+    {
+        "accelerated",
+        "achieved",
+        "automated",
+        "built",
+        "created",
+        "delivered",
+        "designed",
+        "developed",
+        "directed",
+        "drove",
+        "enabled",
+        "engineered",
+        "established",
+        "executed",
+        "expanded",
+        "generated",
+        "grew",
+        "headed",
+        "identified",
+        "implemented",
+        "improved",
+        "increased",
+        "initiated",
+        "integrated",
+        "introduced",
+        "launched",
+        "led",
+        "managed",
+        "migrated",
+        "modernized",
+        "optimized",
+        "orchestrated",
+        "overhauled",
+        "pioneered",
+        "proposed",
+        "reduced",
+        "redesigned",
+        "refactored",
+        "resolved",
+        "revamped",
+        "scaled",
+        "secured",
+        "simplified",
+        "spearheaded",
+        "standardized",
+        "streamlined",
+        "strengthened",
+        "supervised",
+        "transformed",
+        "unified",
+        "upgraded",
+    }
+)
 _ACTION_VERB_RE = re.compile(
-    r"^(?:achieved|automated|built|created|delivered|designed|developed|drove|enabled|engineered|established|executed|expanded|generated|grew|implemented|improved|increased|integrated|launched|led|managed|migrated|modernized|optimized|orchestrated|reduced|refactored|resolved|scaled|secured|simplified|standardized|streamlined|transformed|upgraded)\b",
+    rf"^(?:{'|'.join(sorted(map(re.escape, ACTION_VERBS), key=len, reverse=True))})\b",
     re.IGNORECASE,
 )
 _METHOD_MARKER_RE = re.compile(
     r"\b(?:by|through|using|via|with|leveraging|on|across)\b", re.IGNORECASE
+)
+_RESULT_MARKER_RE = re.compile(
+    r"\b(?:achieving|allowing|enabling|improving|increasing|reducing|resulting|"
+    r"strengthening|supporting|to\s+(?:enable|improve|reduce|support|prevent|ensure))\b",
+    re.IGNORECASE,
 )
 
 _SKILL_REQUIRED = ("category", "items")
@@ -37,9 +101,7 @@ _EXPERIENCE_REQUIRED = ("company", "title", "dates", "bullets")
 _EDUCATION_REQUIRED = ("school", "degree", "dates")
 
 
-def validate_resume_content(
-    payload: dict[str, Any], *, require_non_empty: bool = False
-) -> None:
+def validate_resume_content(payload: dict[str, Any], *, require_non_empty: bool = False) -> None:
     """Validate resume JSON has required keys and correct types.
 
     When *require_non_empty* is True the list fields must also be non-empty
@@ -163,9 +225,104 @@ def write_json_file(path: Path, payload: dict[str, Any]) -> Path:
     return path
 
 
-def collect_bullets(
-    resume: dict[str, Any], *, include_projects: bool = True
-) -> list[str]:
+def canonical_json_fingerprint(payload: dict[str, Any]) -> str:
+    """Return a stable SHA-256 fingerprint for a JSON object."""
+    canonical = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return f"sha256:{hashlib.sha256(canonical).hexdigest()}"
+
+
+def slugify_token(value: str) -> str:
+    """Return a URL-safe lowercase slug."""
+    normalized = re.sub(r"[^a-z0-9]+", "-", value.casefold()).strip("-")
+    return normalized[:36] or "item"
+
+
+def stable_identifier(prefix: str, *parts: str) -> str:
+    """Return a deterministic stable identifier with a truncated SHA-256 digest."""
+    canonical = "\x1f".join(" ".join(part.casefold().split()) for part in parts)
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:12]
+    return f"{prefix}-{slugify_token(parts[0] if parts else prefix)}-{digest}"
+
+
+def entity_anchor(resume: dict[str, Any], entity_type: str, entity_key: str) -> tuple[str, str]:
+    """Return the display label and identity string for a structural entity."""
+    if entity_type == "profile":
+        return "Candidate Profile", "profile"
+    match = re.fullmatch(r"([a-z]+)\[(\d+)\]", entity_key)
+    if match is None:
+        return entity_key, entity_key
+    section, index_text = match.groups()
+    try:
+        index = int(index_text)
+    except ValueError:
+        return entity_key, entity_key
+    entries = resume.get(section, [])
+    entry = entries[index] if isinstance(entries, list) and index < len(entries) else {}
+    anchor_fields = {
+        "skill": ("category",),
+        "experience": ("company", "title", "dates"),
+        "project": ("name", "dates"),
+        "education": ("school", "degree", "dates"),
+        "certification": ("name", "issuer", "dates"),
+        "award": ("name", "organization", "dates"),
+    }.get(entity_type, ("name",))
+    values = [
+        str(entry.get(field, "")).strip()
+        for field in anchor_fields
+        if str(entry.get(field, "")).strip()
+    ]
+    label = " — ".join(values) or entity_key
+    identity = "\x1f".join(values) or entity_key
+    return label, identity
+
+
+def iter_resume_text_fields(
+    resume: dict[str, Any],
+) -> Iterator[tuple[str, str, str, str]]:
+    """Yield substantive display fields as path, text, entity type, and entity key."""
+    for field in ("name", "contact", "summary"):
+        value = resume.get(field)
+        if isinstance(value, str) and value.strip():
+            yield field, value, "profile", "profile"
+
+    section_specs: dict[str, tuple[str, ...]] = {
+        "skills": ("category", "items"),
+        "experience": ("company", "title", "location", "dates"),
+        "projects": ("name", "tech", "dates"),
+        "education": ("school", "degree", "location", "dates"),
+        "certifications": ("name", "issuer", "dates"),
+        "awards": ("name", "organization", "dates"),
+    }
+    for section, fields in section_specs.items():
+        entries = resume.get(section, [])
+        if not isinstance(entries, list):
+            continue
+        for index, entry in enumerate(entries):
+            if not isinstance(entry, dict):
+                continue
+            entity_key = f"{section}[{index}]"
+            for field in fields:
+                value = entry.get(field)
+                if isinstance(value, str) and value.strip():
+                    yield f"{entity_key}.{field}", value, section.rstrip("s"), entity_key
+            bullets = entry.get("bullets", [])
+            if isinstance(bullets, list):
+                for bullet_index, bullet in enumerate(bullets):
+                    if isinstance(bullet, str) and bullet.strip():
+                        yield (
+                            f"{entity_key}.bullets[{bullet_index}]",
+                            bullet,
+                            section.rstrip("s"),
+                            entity_key,
+                        )
+
+
+def collect_bullets(resume: dict[str, Any], *, include_projects: bool = True) -> list[str]:
     """Collect bullet strings from experience (and optionally projects)."""
     bullets: list[str] = []
     for exp in resume.get("experience", []):
@@ -205,6 +362,11 @@ def term_matches(text: str, term: str) -> bool:
     return bool(re.search(f"{left}{re.escape(normalized_term)}{right}", normalized_text))
 
 
+def starts_with_action_verb(text: str) -> bool:
+    """Return whether *text* opens with a recognized action verb."""
+    return bool(_ACTION_VERB_RE.search(text.strip()))
+
+
 def has_quantified_result(text: str) -> bool:
     """Detect result-oriented quantities without counting bare version numbers."""
     return any(pattern.search(text) for pattern in _QUANTIFIED_RESULT_PATTERNS)
@@ -222,8 +384,10 @@ def score_bullet(
     - P1 keyword hit: +3 per unique keyword
     - P2 keyword hit: +2 per unique keyword
     - P3 keyword hit: +1 per unique keyword
-    - Contains quantification (number): +1
-    - Four-element completeness (action + keyword + method + result pattern): +1
+    - Complete evidence structure (action + keyword + method + result): +1
+
+    A sourced number counts as a result marker, but a qualitative result
+    phrase is equally complete; numbers are never required.
 
     Returns dict with score breakdown.
     """
@@ -234,21 +398,16 @@ def score_bullet(
     has_number = has_quantified_result(bullet)
     has_action = bool(_ACTION_VERB_RE.search(bullet.strip()))
     has_method = bool(_METHOD_MARKER_RE.search(bullet))
+    has_result = bool(_RESULT_MARKER_RE.search(bullet)) or has_number
     has_four_elements = (
-        has_number
-        and has_action
+        has_action
         and has_method
-        and (p1_hits or p2_hits or p3_hits)
+        and has_result
+        and bool(p1_hits or p2_hits or p3_hits)
         and len(bullet.split()) >= 8
     )
 
-    score = (
-        len(p1_hits) * 3
-        + len(p2_hits) * 2
-        + len(p3_hits) * 1
-        + (1 if has_number else 0)
-        + (1 if has_four_elements else 0)
-    )
+    score = len(p1_hits) * 3 + len(p2_hits) * 2 + len(p3_hits) * 1 + (1 if has_four_elements else 0)
 
     return {
         "score": score,
@@ -258,13 +417,12 @@ def score_bullet(
         "has_quantification": has_number,
         "has_action": has_action,
         "has_method": has_method,
+        "has_result": has_result,
         "has_four_elements": has_four_elements,
     }
 
 
-def score_all_bullets(
-    resume: dict[str, Any], jd_analysis: dict[str, Any]
-) -> list[dict[str, Any]]:
+def score_all_bullets(resume: dict[str, Any], jd_analysis: dict[str, Any]) -> list[dict[str, Any]]:
     """Score all experience bullets against JD keywords.
 
     Returns list of scored entries with path, text, and score breakdown.

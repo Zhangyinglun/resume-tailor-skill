@@ -34,10 +34,12 @@ Use $resume-tailor to tailor my resume for this role and generate a verified sin
 The Skill keeps personal data in the active user workspace:
 
 ```text
-cache/base-resume.json
-cache/resume-working.json
-cache/jd-analysis.json
-cache/user-profile.md
+cache/base-resume.json             immutable Source Snapshot
+cache/candidate-evidence.json       cross-JD Candidate Evidence Ledger
+cache/candidate-profile.json        long-term presentation preferences
+cache/jd-analysis.json              dual-axis JD Capability analysis
+cache/resume-working.json           current Tailored Resume projection
+cache/resume-changes.json           field-level Tailoring Manifest
 resume_output/
 ```
 
@@ -46,8 +48,10 @@ Run bundled scripts from the installed Skill directory while passing the user wo
 ## Safety Model
 
 - Never fabricate experience, ownership, tools, dates, or metrics.
-- Auto-fit changes layout only.
-- Generate into a staging directory and publish only after PDF QA passes.
+- Reuse prior candidate-confirmed evidence across JDs so clarification questions decrease over time.
+- Require a complete field-level manifest and factual audit before rendering.
+- Auto-fit changes layout only; PDF QA uses rendered word coordinates.
+- Generate into a staging directory and publish only after all blocking gates pass.
 - Preserve accepted PDFs when a new candidate fails; rejected candidates go to `resume_output/rejected/`.
 - Produce A4, one-page, extractable-text output by default.
 

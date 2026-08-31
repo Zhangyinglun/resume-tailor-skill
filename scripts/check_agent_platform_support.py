@@ -28,7 +28,10 @@ EXPECTED_ASSETS = (
     Path("scripts/resume_cache_manager.py"),
     Path("scripts/generate_final_resume.py"),
     Path("scripts/check_pdf_quality.py"),
+    Path("scripts/check_pdf_geometry.py"),
     Path("scripts/check_content_quality.py"),
+    Path("scripts/evidence_ledger_manager.py"),
+    Path("scripts/audit_factual_integrity.py"),
     Path("scripts/generate_quality_report.py"),
     Path("references/resume-language-quality.md"),
 )
@@ -167,6 +170,9 @@ def _baseline_checks(repo_root: Path, runner: Runner) -> dict[str, Any]:
             "extract_resume_text.py",
             "generate_final_resume.py",
             "check_pdf_quality.py",
+            "check_pdf_geometry.py",
+            "evidence_ledger_manager.py",
+            "audit_factual_integrity.py",
         ):
             checks.append(
                 _command_check(
