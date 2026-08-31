@@ -67,12 +67,19 @@ def _two_col_row(left: Paragraph, right: Paragraph, width: float) -> Table:
     return tbl
 
 
-def _add_section(story: list, title: str, styles: dict[str, ParagraphStyle],
-                  accent: Color, tokens: DesignTokens | None = None) -> None:
+def _add_section(
+    story: list,
+    title: str,
+    styles: dict[str, ParagraphStyle],
+    accent: Color,
+    tokens: DesignTokens | None = None,
+) -> None:
     """Append a section heading with horizontal rule."""
     t = tokens or DEFAULT_TOKENS
     story.append(Paragraph(title, styles["Section"]))
-    story.append(HRFlowable(width="100%", thickness=t.section_hr_thickness, color=accent, spaceAfter=4))
+    story.append(
+        HRFlowable(width="100%", thickness=t.section_hr_thickness, color=accent, spaceAfter=4)
+    )
 
 
 @functools.lru_cache(maxsize=1)
@@ -88,8 +95,11 @@ def register_fonts() -> tuple[str, str, str]:
             for name, path in fonts.items():
                 pdfmetrics.registerFont(TTFont(name, str(path)))
             pdfmetrics.registerFontFamily(
-                "Calibri", normal="Calibri", bold="Calibri-Bold",
-                italic="Calibri-Italic", boldItalic="Calibri-Bold",
+                "Calibri",
+                normal="Calibri",
+                bold="Calibri-Bold",
+                italic="Calibri-Italic",
+                boldItalic="Calibri-Bold",
             )
             return "Calibri", "Calibri-Bold", "Calibri-Italic"
     except Exception:  # noqa: BLE001 — font registration may fail for many reasons (missing files, corrupt TTF, permission errors); fallback to Helvetica is intentional
@@ -99,7 +109,8 @@ def register_fonts() -> tuple[str, str, str]:
 
 
 def create_styles(
-    base_font: str, bold_font: str,
+    base_font: str,
+    bold_font: str,
     layout: LayoutSettings | None = None,
     tokens: DesignTokens | None = None,
 ) -> dict[str, ParagraphStyle]:
@@ -119,36 +130,102 @@ def create_styles(
         return ParagraphStyle(name, parent=parent, **kw)
 
     return {
-        "Header": style("Header", fontSize=t.header_font_size*fs, leading=t.header_leading*lh,
-                         textColor=body_ink, spaceAfter=t.header_space_after*ss,
-                         alignment=TA_CENTER, fontName=bold_font),
-        "Contact": style("Contact", fontSize=t.contact_font_size*fs, textColor=body_ink,
-                          spaceAfter=t.contact_space_after*ss, alignment=TA_CENTER, fontName=base_font),
-        "Section": style("Section", fontSize=t.section_font_size*fs, textColor=accent,
-                          spaceBefore=t.section_space_before*ss, spaceAfter=t.section_space_after*ss,
-                          fontName=bold_font, leading=t.section_leading*lh),
-        "Body": style("Body", fontSize=t.body_font_size*fs, leading=t.body_leading*lh, textColor=body_ink,
-                       spaceAfter=t.body_space_after*it, alignment=TA_JUSTIFY,
-                       embeddedHyphenation=1, fontName=base_font),
-        "CompanyName": style("CompanyName", fontSize=t.company_font_size*fs, leading=t.company_leading*lh,
-                              textColor=body_ink, spaceAfter=t.company_space_after*it,
-                              fontName=bold_font, alignment=TA_JUSTIFY, embeddedHyphenation=1),
-        "DatesRight": style("DatesRight", fontSize=t.dates_font_size*fs, leading=t.dates_leading*lh,
-                             textColor=body_ink, fontName=base_font, alignment=TA_RIGHT),
-        "JobDetail": style("JobDetail", fontSize=t.job_detail_font_size*fs, leading=t.job_detail_leading*lh,
-                            textColor=body_ink, spaceAfter=t.job_detail_space_after*it,
-                            fontName=base_font, alignment=TA_JUSTIFY, embeddedHyphenation=1),
-        "Bullet": style("Bullet", fontSize=t.bullet_font_size*fs, leading=t.bullet_leading*lh,
-                         textColor=body_ink, leftIndent=t.bullet_left_indent,
-                         spaceAfter=t.bullet_space_after*it, bulletIndent=t.bullet_indent,
-                         fontName=base_font, alignment=TA_JUSTIFY, embeddedHyphenation=1),
-        "Education": style("Education", fontSize=t.education_font_size*fs, leading=t.education_leading*lh,
-                            textColor=body_ink, spaceAfter=t.education_space_after*it,
-                            fontName=base_font, alignment=TA_JUSTIFY, embeddedHyphenation=1),
-        "EducationDegree": style("EducationDegree", fontSize=t.education_font_size*fs,
-                                  leading=t.education_leading*lh, textColor=body_ink,
-                                  spaceAfter=t.education_space_after*it, fontName=base_font,
-                                  alignment=TA_JUSTIFY, embeddedHyphenation=1),
+        "Header": style(
+            "Header",
+            fontSize=t.header_font_size * fs,
+            leading=t.header_leading * lh,
+            textColor=body_ink,
+            spaceAfter=t.header_space_after * ss,
+            alignment=TA_CENTER,
+            fontName=bold_font,
+        ),
+        "Contact": style(
+            "Contact",
+            fontSize=t.contact_font_size * fs,
+            textColor=body_ink,
+            spaceAfter=t.contact_space_after * ss,
+            alignment=TA_CENTER,
+            fontName=base_font,
+        ),
+        "Section": style(
+            "Section",
+            fontSize=t.section_font_size * fs,
+            textColor=accent,
+            spaceBefore=t.section_space_before * ss,
+            spaceAfter=t.section_space_after * ss,
+            fontName=bold_font,
+            leading=t.section_leading * lh,
+        ),
+        "Body": style(
+            "Body",
+            fontSize=t.body_font_size * fs,
+            leading=t.body_leading * lh,
+            textColor=body_ink,
+            spaceAfter=t.body_space_after * it,
+            alignment=TA_JUSTIFY,
+            embeddedHyphenation=1,
+            fontName=base_font,
+        ),
+        "CompanyName": style(
+            "CompanyName",
+            fontSize=t.company_font_size * fs,
+            leading=t.company_leading * lh,
+            textColor=body_ink,
+            spaceAfter=t.company_space_after * it,
+            fontName=bold_font,
+            alignment=TA_JUSTIFY,
+            embeddedHyphenation=1,
+        ),
+        "DatesRight": style(
+            "DatesRight",
+            fontSize=t.dates_font_size * fs,
+            leading=t.dates_leading * lh,
+            textColor=body_ink,
+            fontName=base_font,
+            alignment=TA_RIGHT,
+        ),
+        "JobDetail": style(
+            "JobDetail",
+            fontSize=t.job_detail_font_size * fs,
+            leading=t.job_detail_leading * lh,
+            textColor=body_ink,
+            spaceAfter=t.job_detail_space_after * it,
+            fontName=base_font,
+            alignment=TA_JUSTIFY,
+            embeddedHyphenation=1,
+        ),
+        "Bullet": style(
+            "Bullet",
+            fontSize=t.bullet_font_size * fs,
+            leading=t.bullet_leading * lh,
+            textColor=body_ink,
+            leftIndent=t.bullet_left_indent,
+            spaceAfter=t.bullet_space_after * it,
+            bulletIndent=t.bullet_indent,
+            fontName=base_font,
+            alignment=TA_JUSTIFY,
+            embeddedHyphenation=1,
+        ),
+        "Education": style(
+            "Education",
+            fontSize=t.education_font_size * fs,
+            leading=t.education_leading * lh,
+            textColor=body_ink,
+            spaceAfter=t.education_space_after * it,
+            fontName=base_font,
+            alignment=TA_JUSTIFY,
+            embeddedHyphenation=1,
+        ),
+        "EducationDegree": style(
+            "EducationDegree",
+            fontSize=t.education_font_size * fs,
+            leading=t.education_leading * lh,
+            textColor=body_ink,
+            spaceAfter=t.education_space_after * it,
+            fontName=base_font,
+            alignment=TA_JUSTIFY,
+            embeddedHyphenation=1,
+        ),
     }
 
 
@@ -165,16 +242,17 @@ def infer_position_from_filename(output_name: str) -> str:
 def get_next_backup_path(backup_dir: Path, output_stem: str) -> Path:
     pattern = re.compile(rf"^{re.escape(output_stem)}_old_(\d+)\.pdf$", re.IGNORECASE)
     max_number = max(
-        (int(m.group(1)) for f in backup_dir.glob(f"{output_stem}_old_*.pdf")
-         if (m := pattern.match(f.name))),
+        (
+            int(m.group(1))
+            for f in backup_dir.glob(f"{output_stem}_old_*.pdf")
+            if (m := pattern.match(f.name))
+        ),
         default=0,
     )
     return backup_dir / f"{output_stem}_old_{max_number + 1}.pdf"
 
 
-def archive_root_pdfs(
-    base_output_dir: Path, exclude_names: set[str] | None = None
-) -> list[Path]:
+def archive_root_pdfs(base_output_dir: Path, exclude_names: set[str] | None = None) -> list[Path]:
     """Move historical PDFs from output root directory to backup directory."""
     excluded = exclude_names or set()
     archived: list[Path] = []
@@ -212,11 +290,13 @@ def _render_two_col_items(
     """Render a list of items with two-column header rows."""
     for i, item in enumerate(items):
         left_text = left_builder(item)
-        story.append(_two_col_row(
-            Paragraph(left_text, styles["CompanyName"]),
-            Paragraph(_safe_text(item.get(dates_key, "")), styles["DatesRight"]),
-            doc_width,
-        ))
+        story.append(
+            _two_col_row(
+                Paragraph(left_text, styles["CompanyName"]),
+                Paragraph(_safe_text(item.get(dates_key, "")), styles["DatesRight"]),
+                doc_width,
+            )
+        )
         if detail_builder:
             detail = detail_builder(item)
             if detail:
@@ -249,9 +329,7 @@ def generate_resume(
     base_output_dir = Path(base_dir)
     resolved_output_dir = base_output_dir.expanduser().resolve()
     if resolved_output_dir == PROJECT_ROOT or PROJECT_ROOT in resolved_output_dir.parents:
-        raise ValueError(
-            "PDF output must use a user workspace outside the Skill package."
-        )
+        raise ValueError("PDF output must use a user workspace outside the Skill package.")
     base_output_dir = resolved_output_dir
     base_output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -292,12 +370,14 @@ def generate_resume(
     # Experience
     _add_section(story, "PROFESSIONAL EXPERIENCE", styles, accent, t)
     _render_two_col_items(
-        story, content_dict["experience"], styles, doc.width, item_spacing,
+        story,
+        content_dict["experience"],
+        styles,
+        doc.width,
+        item_spacing,
         left_builder=lambda j: _safe_text(j.get("company", "")),
         detail_builder=lambda j: " | ".join(
-            _safe_text(part)
-            for part in (j.get("title", ""), j.get("location", ""))
-            if part
+            _safe_text(part) for part in (j.get("title", ""), j.get("location", "")) if part
         ),
     )
 
@@ -305,9 +385,15 @@ def generate_resume(
     if content_dict.get("projects"):
         _add_section(story, "PROJECTS", styles, accent, t)
         _render_two_col_items(
-            story, content_dict["projects"], styles, doc.width, item_spacing,
-            left_builder=lambda p: f"<b>{_safe_text(p.get('name', ''))}</b>"
-            + (f" | {_safe_text(p['tech'])}" if p.get("tech") else ""),
+            story,
+            content_dict["projects"],
+            styles,
+            doc.width,
+            item_spacing,
+            left_builder=lambda p: (
+                f"<b>{_safe_text(p.get('name', ''))}</b>"
+                + (f" | {_safe_text(p['tech'])}" if p.get("tech") else "")
+            ),
         )
 
     # Skills
@@ -325,9 +411,15 @@ def generate_resume(
     if content_dict.get("certifications"):
         _add_section(story, "CERTIFICATIONS", styles, accent, t)
         _render_two_col_items(
-            story, content_dict["certifications"], styles, doc.width, item_spacing,
-            left_builder=lambda c: f"<b>{_safe_text(c.get('name', ''))}</b>"
-            + (f" - {_safe_text(c['issuer'])}" if c.get("issuer") else ""),
+            story,
+            content_dict["certifications"],
+            styles,
+            doc.width,
+            item_spacing,
+            left_builder=lambda c: (
+                f"<b>{_safe_text(c.get('name', ''))}</b>"
+                + (f" - {_safe_text(c['issuer'])}" if c.get("issuer") else "")
+            ),
             has_bullets=False,
         )
 
@@ -335,12 +427,14 @@ def generate_resume(
     if content_dict.get("awards"):
         _add_section(story, "AWARDS", styles, accent, t)
         _render_two_col_items(
-            story, content_dict["awards"], styles, doc.width, item_spacing,
-            left_builder=lambda a: f"<b>{_safe_text(a.get('name', ''))}</b>"
-            + (
-                f" - {_safe_text(a['organization'])}"
-                if a.get("organization")
-                else ""
+            story,
+            content_dict["awards"],
+            styles,
+            doc.width,
+            item_spacing,
+            left_builder=lambda a: (
+                f"<b>{_safe_text(a.get('name', ''))}</b>"
+                + (f" - {_safe_text(a['organization'])}" if a.get("organization") else "")
             ),
             has_bullets=False,
         )
@@ -348,11 +442,13 @@ def generate_resume(
     # Education
     _add_section(story, "EDUCATION", styles, accent, t)
     for edu in content_dict["education"]:
-        story.append(_two_col_row(
-            Paragraph(f"<b>{_safe_text(edu.get('school', ''))}</b>", styles["Education"]),
-            Paragraph(_safe_text(edu.get("dates", "")), styles["DatesRight"]),
-            doc.width,
-        ))
+        story.append(
+            _two_col_row(
+                Paragraph(f"<b>{_safe_text(edu.get('school', ''))}</b>", styles["Education"]),
+                Paragraph(_safe_text(edu.get("dates", "")), styles["DatesRight"]),
+                doc.width,
+            )
+        )
         if edu.get("degree"):
             story.append(Paragraph(_safe_text(edu["degree"]), styles["EducationDegree"]))
 

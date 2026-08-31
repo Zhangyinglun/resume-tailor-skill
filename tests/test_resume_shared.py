@@ -80,9 +80,7 @@ class ResumeSharedTests(unittest.TestCase):
                     "bullets": ["Built services."],
                 }
             ],
-            "education": [
-                {"school": "Example", "degree": "B.S.", "dates": "2020"}
-            ],
+            "education": [{"school": "Example", "degree": "B.S.", "dates": "2020"}],
         }
         with self.assertRaisesRegex(ValueError, "name"):
             validate_resume_content(payload)

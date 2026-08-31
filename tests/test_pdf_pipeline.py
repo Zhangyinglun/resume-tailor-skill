@@ -145,9 +145,7 @@ class PdfPipelineTests(unittest.TestCase):
         ]
         with tempfile.TemporaryDirectory() as temp_dir:
             with contextlib.redirect_stdout(io.StringIO()):
-                rendered_path = Path(
-                    generate_resume("skills-array.pdf", resume, base_dir=temp_dir)
-                )
+                rendered_path = Path(generate_resume("skills-array.pdf", resume, base_dir=temp_dir))
             self.assertTrue(rendered_path.exists())
             with pdfplumber.open(rendered_path) as pdf:
                 text = "\n".join(page.extract_text() or "" for page in pdf.pages)
