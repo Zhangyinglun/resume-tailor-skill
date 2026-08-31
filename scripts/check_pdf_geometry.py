@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Inspect rendered PDF word coordinates for sparse bullet endings."""
+"""Inspect rendered PDF word coordinates for sparse bullet endings and content fit."""
 
 from __future__ import annotations
 
@@ -12,7 +12,63 @@ from typing import Any
 
 import pdfplumber
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from scripts.resume_shared import validate_resume_content  # noqa: E402
+
 _BULLET_MARKERS = {"•", "·", "-", "(cid:127)"}
+
+_SECTION_HEADERS: dict[str, str] = {
+    "SUMMARY": "summary",
+    "PROFESSIONAL SUMMARY": "summary",
+    "PROFESSIONAL EXPERIENCE": "experience",
+    "EXPERIENCE": "experience",
+    "WORK EXPERIENCE": "experience",
+    "PROJECTS": "projects",
+    "PROJECT": "projects",
+    "TECHNICAL SKILLS": "skills",
+    "SKILLS": "skills",
+    "AWARDS": "awards",
+    "AWARD": "awards",
+    "CERTIFICATIONS": "certifications",
+    "CERTIFICATION": "certifications",
+    "EDUCATION": "education",
+}
+
+
+def points_to_mm(value: float) -> float:
+    return value * 25.4 / 72.0
+
+
+def _word_coordinates(words: list[dict[str, Any]]) -> dict[str, list[float]]:
+    """Collect numeric word coordinates, skipping malformed entries."""
+    coords: dict[str, list[float]] = {"top": [], "bottom": [], "x0": [], "x1": []}
+    for word in words:
+        for key in coords:
+            try:
+                coords[key].append(float(word[key]))
+            except (KeyError, TypeError, ValueError):
+                continue
+    return coords
+
+
+def estimate_page_margins_mm(page: Any) -> dict[str, float] | None:
+    words = page.extract_words() or []
+    if not words:
+        return None
+
+    coords = _word_coordinates(words)
+    if not all(coords.values()):
+        return None
+
+    return {
+        "top": points_to_mm(min(coords["top"])),
+        "bottom": points_to_mm(page.height - max(coords["bottom"])),
+        "left": points_to_mm(min(coords["x0"])),
+        "right": points_to_mm(page.width - max(coords["x1"])),
+    }
 
 
 def extract_page_lines(page: Any, *, top_tolerance: float = 2.5) -> list[dict[str, Any]]:
@@ -59,6 +115,111 @@ def _starts_bullet(line: dict[str, Any]) -> bool:
         return False
     first = str(words[0]).strip()
     return first in _BULLET_MARKERS or first.startswith("•")
+
+
+def _calc_geometry(sec_lines: list[dict[str, Any]]) -> dict[str, float | int]:
+    if not sec_lines:
+        return {"line_count": 0, "height_mm": 0.0}
+    top_min = min(float(line["top"]) for line in sec_lines)
+    bottom_max = max(float(line["bottom"]) for line in sec_lines)
+    height_pt = max(0.0, bottom_max - top_min)
+    return {
+        "line_count": len(sec_lines),
+        "height_mm": round(points_to_mm(height_pt), 1),
+    }
+
+
+def _match_experience_entries(
+    lines: list[dict[str, Any]],
+    entries: list[dict[str, Any]],
+) -> dict[str, dict[str, float | int]] | None:
+    if not entries:
+        return None
+
+    start_indices: list[int] = []
+    current_line_idx = 0
+
+    for i, entry in enumerate(entries):
+        company = str(entry.get("company", "")).strip().casefold()
+        dates = str(entry.get("dates", "")).strip().casefold()
+        title = str(entry.get("title", "")).strip().casefold()
+
+        found_idx = None
+        for idx in range(current_line_idx, len(lines)):
+            line = lines[idx]
+            if _starts_bullet(line):
+                continue
+            line_text = str(line.get("text", "")).casefold()
+
+            company_match = bool(company and company in line_text)
+            dates_match = bool(dates and dates in line_text)
+            title_match = bool(title and title in line_text)
+
+            if company_match:
+                other_same_company = [
+                    other
+                    for j, other in enumerate(entries)
+                    if j != i and str(other.get("company", "")).strip().casefold() == company
+                ]
+                if other_same_company:
+                    if dates_match or title_match or idx == current_line_idx:
+                        found_idx = idx
+                        break
+                else:
+                    found_idx = idx
+                    break
+            elif dates_match and title_match:
+                found_idx = idx
+                break
+
+        if found_idx is None:
+            return None
+
+        start_indices.append(found_idx)
+        current_line_idx = found_idx + 1
+
+    result: dict[str, dict[str, float | int]] = {}
+    for i in range(len(entries)):
+        start = 0 if i == 0 else start_indices[i]
+        end = start_indices[i + 1] if i + 1 < len(entries) else len(lines)
+        entry_lines = lines[start:end]
+        result[f"experience[{i}]"] = _calc_geometry(entry_lines)
+    return result
+
+
+def _section_geometry(
+    lines: list[dict[str, Any]],
+    resume: dict[str, Any],
+) -> dict[str, dict[str, float | int]]:
+    """Group rendered PDF lines into section and entry geometry."""
+    section_lines: dict[str, list[dict[str, Any]]] = {}
+    current_section: str | None = None
+
+    for line in lines:
+        text = str(line.get("text", "")).strip()
+        upper_text = text.upper()
+        if upper_text in _SECTION_HEADERS:
+            current_section = _SECTION_HEADERS[upper_text]
+            if current_section not in section_lines:
+                section_lines[current_section] = []
+            continue
+        if current_section is not None:
+            section_lines[current_section].append(line)
+
+    result: dict[str, dict[str, float | int]] = {}
+    for section_name, sec_lines in section_lines.items():
+        if section_name == "experience":
+            entries = resume.get("experience")
+            if isinstance(entries, list) and entries:
+                matched = _match_experience_entries(sec_lines, entries)
+                if matched is not None:
+                    result.update(matched)
+                    continue
+            result["experience"] = _calc_geometry(sec_lines)
+        else:
+            result[section_name] = _calc_geometry(sec_lines)
+
+    return result
 
 
 def detect_sparse_bullet_endings(
@@ -136,15 +297,130 @@ def check_pdf_geometry(pdf_path: Path) -> dict[str, Any]:
     }
 
 
+def build_content_fit_feedback(
+    pdf_path: Path,
+    resume: dict[str, Any],
+    *,
+    plan_revision: int,
+    preferred_max_bottom_mm: float = 8.0,
+) -> dict[str, Any]:
+    """Generate real PDF content fit feedback against the preferred layout."""
+    validate_resume_content(resume, require_non_empty=True)
+    with pdfplumber.open(pdf_path) as pdf:
+        page_count = len(pdf.pages)
+        if page_count == 0:
+            raise ValueError(f"PDF contains no pages: {pdf_path}")
+        page_lines = [extract_page_lines(page) for page in pdf.pages]
+        first_page = pdf.pages[0]
+        margins = estimate_page_margins_mm(first_page)
+        section_geometry = _section_geometry(page_lines[0], resume)
+        sparse = detect_sparse_bullet_endings(
+            page_lines[0], page_width=float(first_page.width)
+        )
+
+    skills_lines = int(section_geometry.get("skills", {}).get("line_count", 0))
+    issues: list[str] = []
+    if skills_lines and not (2 <= skills_lines <= 4):
+        issues.append("skills_rendered_line_budget")
+    if page_count > 1:
+        verdict = "overflow"
+    elif margins is not None and margins["bottom"] > preferred_max_bottom_mm:
+        verdict = "underfill"
+    elif issues:
+        verdict = "revision_required"
+    else:
+        verdict = "fit"
+    return {
+        "schema_version": 1,
+        "plan_revision": plan_revision,
+        "verdict": verdict,
+        "page_count": page_count,
+        "bottom_whitespace_mm": None if margins is None else round(margins["bottom"], 2),
+        "section_geometry": section_geometry,
+        "sparse_trailing_bullets": sparse,
+        "issues": issues,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Check rendered PDF line geometry.")
     parser.add_argument("pdf_path", help="PDF file path")
-    parser.add_argument("--json", action="store_true", dest="json_output")
+    parser.add_argument(
+        "--resume",
+        type=str,
+        default=None,
+        help="Path to resume JSON to evaluate content fit feedback",
+    )
+    parser.add_argument(
+        "--plan-revision",
+        type=int,
+        default=1,
+        help="Plan revision number (default: 1)",
+    )
+    parser.add_argument(
+        "--preferred-max-bottom-mm",
+        type=float,
+        default=8.0,
+        help="Preferred maximum bottom whitespace in mm (default: 8.0)",
+    )
+    parser.add_argument(
+        "--feedback-output",
+        type=str,
+        default=None,
+        help="Path to write content fit feedback JSON",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Output results as JSON",
+    )
     args = parser.parse_args()
     pdf_path = Path(args.pdf_path).expanduser().resolve()
     if not pdf_path.exists():
         print(f"Error: File does not exist: {pdf_path}", file=sys.stderr)
         return 1
+
+    if args.resume:
+        resume_path = Path(args.resume).expanduser().resolve()
+        if not resume_path.exists():
+            print(f"Error: Resume file does not exist: {resume_path}", file=sys.stderr)
+            return 1
+        try:
+            resume = json.loads(resume_path.read_text(encoding="utf-8"))
+            feedback = build_content_fit_feedback(
+                pdf_path,
+                resume,
+                plan_revision=args.plan_revision,
+                preferred_max_bottom_mm=args.preferred_max_bottom_mm,
+            )
+        except Exception as exc:  # noqa: BLE001 - stable failure exit
+            print(f"Error: Content fit check failed: {exc}", file=sys.stderr)
+            return 1
+
+        if args.feedback_output:
+            out_path = Path(args.feedback_output).expanduser().resolve()
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(
+                json.dumps(feedback, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+
+        if args.json_output:
+            print(json.dumps(feedback, ensure_ascii=False, indent=2))
+        else:
+            print(
+                f"Content fit: {feedback['verdict']} "
+                f"(page_count={feedback['page_count']}, "
+                f"bottom_whitespace={feedback['bottom_whitespace_mm']}mm)"
+            )
+            if feedback["issues"]:
+                print(f"  Issues: {', '.join(feedback['issues'])}")
+            if feedback["sparse_trailing_bullets"]:
+                print(f"  Sparse trailing bullets: {len(feedback['sparse_trailing_bullets'])}")
+
+        return 0 if feedback["verdict"] == "fit" else 2
+
     try:
         report = check_pdf_geometry(pdf_path)
     except Exception as exc:  # noqa: BLE001 - CLI exposes a stable failure code.
@@ -165,3 +441,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

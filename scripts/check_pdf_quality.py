@@ -19,6 +19,8 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from scripts.check_pdf_geometry import (  # noqa: E402
     check_pdf_geometry,
+    estimate_page_margins_mm,
+    points_to_mm,
 )
 from scripts.resume_shared import term_matches  # noqa: E402
 
@@ -44,10 +46,6 @@ PLACEHOLDER_PATTERN = re.compile(
     r"\[(?:To be filled|Dates|Degree|School|Certification|Award|Project|Company|Title|Location)\]",
     re.IGNORECASE,
 )
-
-
-def points_to_mm(value: float) -> float:
-    return value * 25.4 / 72.0
 
 
 def parse_args() -> argparse.Namespace:
@@ -104,35 +102,6 @@ def parse_args() -> argparse.Namespace:
         help="Output results as JSON (machine-readable)",
     )
     return parser.parse_args()
-
-
-def _word_coordinates(words: list[dict[str, Any]]) -> dict[str, list[float]]:
-    """Collect numeric word coordinates, skipping malformed entries."""
-    coords: dict[str, list[float]] = {"top": [], "bottom": [], "x0": [], "x1": []}
-    for word in words:
-        for key in coords:
-            try:
-                coords[key].append(float(word[key]))
-            except (KeyError, TypeError, ValueError):
-                continue
-    return coords
-
-
-def estimate_page_margins_mm(page: Any) -> dict[str, float] | None:
-    words = page.extract_words() or []
-    if not words:
-        return None
-
-    coords = _word_coordinates(words)
-    if not all(coords.values()):
-        return None
-
-    return {
-        "top": points_to_mm(min(coords["top"])),
-        "bottom": points_to_mm(page.height - max(coords["bottom"])),
-        "left": points_to_mm(min(coords["x0"])),
-        "right": points_to_mm(page.width - max(coords["x1"])),
-    }
 
 
 def build_quality_report(
