@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -25,6 +26,79 @@ from scripts.resume_shared import (  # noqa: E402
 _MAX_BULLET_WORDS = 28
 _VERB_PASS_THRESHOLD = 0.60
 _NGRAM_REPEAT_THRESHOLD = 3
+
+_LANGUAGE_PATTERNS: dict[str, re.Pattern[str]] = {
+    "promotional_language": re.compile(
+        r"\b(?:cutting-edge|groundbreaking|transformative|best-in-class|seamless(?:ly)?)\b",
+        re.IGNORECASE,
+    ),
+    "empty_qualifier": re.compile(
+        r"\b(?:successfully|strategically|efficiently)\b",
+        re.IGNORECASE,
+    ),
+    "negative_parallelism": re.compile(
+        r"\b(?:not only\b.{0,80}\bbut also|not just\b.{0,80}\bbut)\b",
+        re.IGNORECASE,
+    ),
+    "trailing_participle": re.compile(
+        r",\s+(?:ensuring|fostering|highlighting|underscoring)\b",
+        re.IGNORECASE,
+    ),
+    "copula_avoidance": re.compile(
+        r"\b(?:serves as|stands as|boasts)\b",
+        re.IGNORECASE,
+    ),
+    "filler": re.compile(
+        r"\b(?:in order to|responsible for|it is important to note)\b",
+        re.IGNORECASE,
+    ),
+}
+
+
+def check_resume_language_patterns(texts: list[str]) -> dict[str, str]:
+    """Check for formulaic resume language pattern clusters."""
+    if not texts:
+        return {
+            "name": "language_pattern_cluster",
+            "status": "PASS",
+            "detail": "No prose text to check",
+        }
+
+    detected_by_family: dict[str, list[str]] = {}
+    for text in texts:
+        clean_text = text.strip()
+        if not clean_text:
+            continue
+        for name, pattern in _LANGUAGE_PATTERNS.items():
+            matches = [m.group(0) for m in pattern.finditer(clean_text)]
+            if matches:
+                detected_by_family.setdefault(name, []).append(
+                    f"{name} [{', '.join(matches)}]: {clean_text[:80]}"
+                )
+
+    distinct_families = list(detected_by_family.keys())
+    is_warn = len(distinct_families) >= 2 or any(
+        len(occurrences) >= 2 for occurrences in detected_by_family.values()
+    )
+
+    if is_warn:
+        findings: list[str] = []
+        for name in sorted(detected_by_family.keys()):
+            findings.extend(detected_by_family[name])
+        return {
+            "name": "language_pattern_cluster",
+            "status": "WARN",
+            "detail": (
+                f"Formulaic language patterns detected ({', '.join(sorted(distinct_families))}): "
+                f"{'; '.join(findings)}"
+            ),
+        }
+
+    return {
+        "name": "language_pattern_cluster",
+        "status": "PASS",
+        "detail": "No formulaic language pattern clusters detected",
+    }
 
 
 def check_bullet_length(bullets: list[str]) -> dict[str, str]:
@@ -126,11 +200,14 @@ def run_all_checks(resume: dict[str, Any] | Path) -> list[dict[str, str]]:
         resume = load_json_file(resume)
     validate_resume_content(resume, require_non_empty=True)
     all_bullets = collect_bullets(resume, include_projects=True)
+    prose = [str(resume.get("summary", ""))]
+    prose.extend(all_bullets)
     return [
         check_bullet_length(all_bullets),
         check_bullet_starts_with_verb(all_bullets),
         check_duplicate_phrases(all_bullets),
         check_bullet_density(resume.get("experience", [])),
+        check_resume_language_patterns([text for text in prose if text.strip()]),
     ]
 
 
