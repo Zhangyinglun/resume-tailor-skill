@@ -27,6 +27,7 @@ from scripts.resume_cache_manager import validate_jd_analysis  # noqa: E402
 from scripts.resume_shared import (  # noqa: E402
     extract_terms,
     load_json_file,
+    normalize_skill_items,
     term_matches,
     validate_resume_content,
 )
@@ -51,7 +52,10 @@ def _collect_searchable_texts(resume: dict[str, Any]) -> list[tuple[str, str]]:
         if category:
             texts.append((f"skills[{i}].category", category))
         items = sk.get("items", "")
-        if items:
+        if isinstance(items, list):
+            for j, it in enumerate(normalize_skill_items(items)):
+                texts.append((f"skills[{i}].items[{j}]", it))
+        elif isinstance(items, str) and items:
             texts.append((f"skills[{i}].items", items))
 
     for i, exp in enumerate(resume.get("experience", [])):
@@ -80,6 +84,11 @@ def _collect_searchable_texts(resume: dict[str, Any]) -> list[tuple[str, str]]:
         name = certification.get("name", "")
         if name:
             texts.append((f"certifications[{i}].name", name))
+
+    for i, award in enumerate(resume.get("awards", [])):
+        name = award.get("name", "")
+        if name:
+            texts.append((f"awards[{i}].name", name))
 
     return texts
 
@@ -209,6 +218,184 @@ def format_factual_audit_section(factual_report: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def format_projection_plan_section(projection_plan: dict[str, Any]) -> str:
+    lines = ["### Projection Plan", ""]
+    revision = projection_plan.get("revision")
+    if revision is not None:
+        lines.append(f"- Plan revision: {revision}")
+    status = projection_plan.get("status")
+    if status is not None:
+        lines.append(f"- Status: {_md_cell(status)}")
+
+    exp_plans = projection_plan.get("experience_plans", [])
+    if exp_plans:
+        lines.extend([
+            "",
+            "#### Experience Budget",
+            "| Entity | Importance | Target Bullets | Reason |",
+            "|---|---|---|---|",
+        ])
+        for exp in exp_plans:
+            entity_id = exp.get("entity_id", "")
+            importance = exp.get("importance", "")
+            target_bullets = exp.get("target_bullet_count", "")
+            reason = exp.get("reason", "")
+            lines.append(
+                f"| {_md_cell(entity_id)} | {_md_cell(importance)} | "
+                f"{_md_cell(target_bullets)} | {_md_cell(reason)} |"
+            )
+
+    skills_plan = projection_plan.get("skills_plan")
+    if isinstance(skills_plan, dict) and skills_plan.get("groups"):
+        lines.extend(["", "#### Skills Plan"])
+        for group in skills_plan.get("groups", []):
+            category = group.get("category", "")
+            raw_items = group.get("items", [])
+            item_names: list[str] = []
+            for it in raw_items:
+                if isinstance(it, dict):
+                    item_names.append(it.get("display_term") or it.get("name", ""))
+                else:
+                    item_names.append(str(it))
+            lines.append(f"- **{_md_cell(category)}**: {_md_cell(', '.join(item_names))}")
+
+    opt_sections = projection_plan.get("optional_sections", [])
+    if opt_sections:
+        lines.extend(["", "#### Optional Section Decisions"])
+        removed = [
+            s for s in opt_sections
+            if (s.get("decision") or s.get("action")) == "remove"
+        ]
+        retained = [
+            s for s in opt_sections
+            if (s.get("decision") or s.get("action")) != "remove"
+        ]
+        if removed:
+            removed_desc = "; ".join(
+                f"{s.get('section') or s.get('section_name')}"
+                + (f" ({s.get('reason')})" if s.get("reason") else "")
+                for s in removed
+            )
+            lines.append(f"- Removed optional sections: {removed_desc}")
+        if retained:
+            retained_desc = "; ".join(
+                f"{s.get('section') or s.get('section_name')}"
+                + (f" ({s.get('reason')})" if s.get("reason") else "")
+                for s in retained
+            )
+            lines.append(f"- Retained optional sections: {retained_desc}")
+
+        lines.extend([
+            "",
+            "| Section | Decision | Reason |",
+            "|---|---|---|",
+        ])
+        for s in opt_sections:
+            sec_name = s.get("section") or s.get("section_name", "")
+            decision = s.get("decision") or s.get("action", "")
+            reason = s.get("reason", "")
+            lines.append(f"| {_md_cell(sec_name)} | {_md_cell(decision)} | {_md_cell(reason)} |")
+
+    lines.append("")
+    return "\n".join(lines)
+
+
+def format_language_optimization_section(language_output: dict[str, Any]) -> str:
+    lines = ["### Resume Language Optimization", ""]
+    items = language_output.get("items", [])
+    lines.append(f"- Total language items: {len(items)}")
+
+    all_zero = True
+    for item in items:
+        mc = item.get("meaning_check", {})
+        if (
+            mc.get("facts_added")
+            or mc.get("facts_removed")
+            or mc.get("metrics_changed")
+            or mc.get("ownership_changed") is not False
+        ):
+            all_zero = False
+            break
+
+    if all_zero:
+        lines.append(
+            "- Meaning check: Declared zero meaning changes "
+            "(facts, metrics, and ownership preserved)."
+        )
+    else:
+        lines.append(
+            "- Meaning check: ⚠ Meaning changes detected in output items."
+        )
+
+    action_counts: dict[str, int] = {}
+    for item in items:
+        for action in item.get("style_actions", []):
+            action_counts[action] = action_counts.get(action, 0) + 1
+
+    if action_counts:
+        actions_str = ", ".join(f"{k} ({v})" for k, v in sorted(action_counts.items()))
+        lines.append(f"- Style actions summary: {actions_str}")
+        lines.extend([
+            "",
+            "| Style Action | Count |",
+            "|---|---|",
+        ])
+        for act, cnt in sorted(action_counts.items()):
+            lines.append(f"| {_md_cell(act)} | {cnt} |")
+    else:
+        lines.append("- Style actions summary: None")
+
+    lines.append("")
+    return "\n".join(lines)
+
+
+def format_content_fit_section(content_fit_feedback: dict[str, Any]) -> str:
+    lines = ["### Content Fit", ""]
+    verdict = content_fit_feedback.get("verdict", "UNKNOWN")
+    lines.append(f"- Verdict: **{_md_cell(verdict)}**")
+
+    revision = content_fit_feedback.get("plan_revision")
+    if revision is not None:
+        lines.append(f"- Plan revision: {revision}")
+
+    page_count = content_fit_feedback.get("page_count")
+    if page_count is not None:
+        lines.append(f"- Page count: {page_count}")
+
+    bottom_ws = content_fit_feedback.get("bottom_whitespace_mm")
+    if bottom_ws is not None:
+        lines.append(f"- Bottom whitespace: {bottom_ws} mm")
+    else:
+        lines.append("- Bottom whitespace: —")
+
+    section_geo = content_fit_feedback.get("section_geometry", {})
+    skills_lines = None
+    if isinstance(section_geo, dict):
+        skills_info = section_geo.get("skills")
+        if isinstance(skills_info, dict):
+            skills_lines = skills_info.get("line_count")
+    if skills_lines is None:
+        skills_lines = (
+            content_fit_feedback.get("skills_line_count")
+            or content_fit_feedback.get("skills_lines")
+        )
+    if skills_lines is not None:
+        lines.append(f"- Skills line count: {skills_lines}")
+
+    issues = content_fit_feedback.get("issues", [])
+    if issues:
+        lines.append(f"- Issues: {_md_cell(', '.join(str(i) for i in issues))}")
+    else:
+        lines.append("- Issues: None")
+
+    sparse = content_fit_feedback.get("sparse_trailing_bullets", [])
+    if sparse:
+        lines.append(f"- Sparse trailing bullets detected: {len(sparse)}")
+
+    lines.append("")
+    return "\n".join(lines)
+
+
 def format_capability_alignment_section(jd_analysis: dict[str, Any]) -> str:
     lines = ["### JD Capability Alignment", ""]
     capabilities = jd_analysis.get("capabilities", [])
@@ -293,12 +480,24 @@ def generate_report(
     *,
     pdf_report: dict[str, Any] | None = None,
     factual_report: dict[str, Any] | None = None,
+    projection_plan: dict[str, Any] | None = None,
+    language_output: dict[str, Any] | None = None,
+    content_fit_feedback: dict[str, Any] | None = None,
 ) -> str:
     """Build and return the full quality report as a Markdown string."""
     sections = ["## Quality Check Report", ""]
 
     if factual_report is not None:
         sections.append(format_factual_audit_section(factual_report))
+
+    if projection_plan is not None:
+        sections.append(format_projection_plan_section(projection_plan))
+
+    if language_output is not None:
+        sections.append(format_language_optimization_section(language_output))
+
+    if content_fit_feedback is not None:
+        sections.append(format_content_fit_section(content_fit_feedback))
 
     # Format compliance (PDF, optional)
     if pdf_report is not None:
@@ -333,6 +532,21 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--manifest", help="Path to resume-changes.json")
     parser.add_argument("--evidence", help="Path to candidate-evidence.json")
     parser.add_argument("--base", help="Path to base-resume.json")
+    parser.add_argument(
+        "--projection-plan",
+        dest="projection_plan",
+        help="Path to projection-plan.json (optional)",
+    )
+    parser.add_argument(
+        "--language-output",
+        dest="language_output",
+        help="Path to language-output.json (optional)",
+    )
+    parser.add_argument(
+        "--content-fit-feedback",
+        dest="content_fit_feedback",
+        help="Path to content-fit-feedback.json (optional)",
+    )
     return parser.parse_args()
 
 
@@ -386,6 +600,45 @@ def main() -> int:
             print(f"Error: factual audit failed: {exc}", file=sys.stderr)
             return 1
 
+    projection_plan: dict[str, Any] | None = None
+    if args.projection_plan:
+        plan_path = Path(args.projection_plan).expanduser().resolve()
+        if plan_path.exists():
+            try:
+                projection_plan = load_json_file(plan_path)
+            except (OSError, ValueError) as exc:
+                print(f"Error: invalid projection plan: {exc}", file=sys.stderr)
+                return 1
+        else:
+            print(f"Warning: projection-plan file not found: {plan_path}", file=sys.stderr)
+            incomplete_inputs = True
+
+    language_output: dict[str, Any] | None = None
+    if args.language_output:
+        lang_path = Path(args.language_output).expanduser().resolve()
+        if lang_path.exists():
+            try:
+                language_output = load_json_file(lang_path)
+            except (OSError, ValueError) as exc:
+                print(f"Error: invalid language output: {exc}", file=sys.stderr)
+                return 1
+        else:
+            print(f"Warning: language-output file not found: {lang_path}", file=sys.stderr)
+            incomplete_inputs = True
+
+    content_fit_feedback: dict[str, Any] | None = None
+    if args.content_fit_feedback:
+        fit_path = Path(args.content_fit_feedback).expanduser().resolve()
+        if fit_path.exists():
+            try:
+                content_fit_feedback = load_json_file(fit_path)
+            except (OSError, ValueError) as exc:
+                print(f"Error: invalid content fit feedback: {exc}", file=sys.stderr)
+                return 1
+        else:
+            print(f"Warning: content-fit-feedback file not found: {fit_path}", file=sys.stderr)
+            incomplete_inputs = True
+
     pdf_report: dict[str, Any] | None = None
     if args.pdf:
         pdf_path = Path(args.pdf).expanduser().resolve()
@@ -407,6 +660,9 @@ def main() -> int:
             jd_analysis,
             pdf_report=pdf_report,
             factual_report=factual_report,
+            projection_plan=projection_plan,
+            language_output=language_output,
+            content_fit_feedback=content_fit_feedback,
         )
     )
     content_ok = all(item.get("status") == "PASS" for item in content_checks)
