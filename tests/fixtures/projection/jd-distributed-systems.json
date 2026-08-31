@@ -1,0 +1,73 @@
+{
+  "position": "Distributed Systems Engineer",
+  "keywords": {
+    "P1": [
+      "Java",
+      "Go",
+      "Kafka"
+    ],
+    "P2": [
+      "Kubernetes",
+      "Redis",
+      "High Availability"
+    ],
+    "P3": [
+      "Distributed Scheduling",
+      "Latency Optimization",
+      "Microservices"
+    ]
+  },
+  "capabilities": [
+    {
+      "capability_id": "cap-dist-go",
+      "priority": "P1",
+      "name": "High-throughput Go APIs",
+      "match_type": "direct",
+      "evidence_state": "sourced",
+      "claim_ids": []
+    },
+    {
+      "capability_id": "cap-dist-kafka",
+      "priority": "P1",
+      "name": "Kafka stream processing",
+      "match_type": "direct",
+      "evidence_state": "sourced",
+      "claim_ids": []
+    },
+    {
+      "capability_id": "cap-dist-java",
+      "priority": "P1",
+      "name": "High-availability Java backend services",
+      "match_type": "direct",
+      "evidence_state": "sourced",
+      "claim_ids": []
+    },
+    {
+      "capability_id": "cap-dist-k8s",
+      "priority": "P2",
+      "name": "Kubernetes container orchestration",
+      "match_type": "direct",
+      "evidence_state": "sourced",
+      "claim_ids": []
+    },
+    {
+      "capability_id": "cap-dist-redis",
+      "priority": "P2",
+      "name": "Redis caching and latency optimization",
+      "match_type": "direct",
+      "evidence_state": "sourced",
+      "claim_ids": []
+    }
+  ],
+  "alignment": {
+    "matched": [
+      "cap-dist-go",
+      "cap-dist-kafka",
+      "cap-dist-java",
+      "cap-dist-k8s",
+      "cap-dist-redis"
+    ],
+    "transferable": [],
+    "gaps": []
+  }
+}

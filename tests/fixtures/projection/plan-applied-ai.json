@@ -1,0 +1,253 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "status": "ready",
+  "target_jd_fingerprint": "",
+  "source_snapshot_fingerprint": "",
+  "constraints": {
+    "page_size": "A4",
+    "page_count": 1,
+    "experience_bullet_min": 1,
+    "experience_bullet_max": 5,
+    "skills_group_min": 2,
+    "skills_group_max": 4,
+    "skills_rendered_line_min": 2,
+    "skills_rendered_line_max": 4,
+    "clarification_question_max": 5,
+    "content_fit_revision_max": 3
+  },
+  "clarifications": [],
+  "summary_intent": {
+    "intent_id": "intent-summary",
+    "claim_ids": [
+      "claim-profile-profile-1900eab6c028-997d71ee98b1"
+    ],
+    "capability_ids": [
+      "cap-applied-ai-mcp",
+      "cap-applied-ai-azure"
+    ],
+    "operation": "REWORD",
+    "content_intent": "Software engineer specializing in AI diagnostics and distributed APIs.",
+    "target_lines": 1
+  },
+  "experience_plans": [
+    {
+      "entity_id": "experience-example-cloud-software-engineer-2024-c119831455aa",
+      "importance": "critical",
+      "target_bullet_count": 2,
+      "reason": "Direct experience in MCP tool calling and RAG evaluations on Azure OpenAI.",
+      "content_intents": [
+        {
+          "intent_id": "intent-cloud-bullet-1",
+          "claim_ids": [
+            "claim-experience-example-cloud-software-en-8eb9c78240c8"
+          ],
+          "capability_ids": [
+            "cap-applied-ai-mcp",
+            "cap-applied-ai-azure"
+          ],
+          "operation": "REWORD",
+          "content_intent": "Built MCP diagnostics workflow on Azure OpenAI with tool calling.",
+          "target_lines": 1
+        },
+        {
+          "intent_id": "intent-cloud-bullet-2",
+          "claim_ids": [
+            "claim-experience-example-cloud-software-en-a6400262147e"
+          ],
+          "capability_ids": [
+            "cap-applied-ai-rag",
+            "cap-applied-ai-obs"
+          ],
+          "operation": "REWORD",
+          "content_intent": "Created RAG evaluations for incident diagnostics.",
+          "target_lines": 1
+        }
+      ]
+    },
+    {
+      "entity_id": "experience-example-social-software-engineer-202-552c24c943e3",
+      "importance": "important",
+      "target_bullet_count": 2,
+      "reason": "Production API scaling and messaging infrastructure experience.",
+      "content_intents": [
+        {
+          "intent_id": "intent-social-bullet-1",
+          "claim_ids": [
+            "claim-experience-example-social-software-e-a8aa84f9c93b"
+          ],
+          "capability_ids": [
+            "cap-applied-ai-api"
+          ],
+          "operation": "REWORD",
+          "content_intent": "Built Go APIs serving 10M daily requests on Kubernetes.",
+          "target_lines": 1
+        },
+        {
+          "intent_id": "intent-social-bullet-2",
+          "claim_ids": [
+            "claim-experience-example-social-software-e-2def1f4e11fd"
+          ],
+          "capability_ids": [
+            "cap-applied-ai-obs"
+          ],
+          "operation": "REWORD",
+          "content_intent": "Reduced data latency with Kafka and Redis.",
+          "target_lines": 1
+        }
+      ]
+    },
+    {
+      "entity_id": "experience-example-commerce-software-engineer-2-1dae16ff8af0",
+      "importance": "supporting",
+      "target_bullet_count": 1,
+      "reason": "High throughput backend services.",
+      "content_intents": [
+        {
+          "intent_id": "intent-commerce-bullet-1",
+          "claim_ids": [
+            "claim-experience-example-commerce-software-8dd984c9f9fe"
+          ],
+          "capability_ids": [
+            "cap-applied-ai-api"
+          ],
+          "operation": "REWORD",
+          "content_intent": "Built Java services handling 20K QPS with high availability.",
+          "target_lines": 1
+        }
+      ]
+    }
+  ],
+  "skills_plan": {
+    "groups": [
+      {
+        "category": "AI Platforms & Tooling",
+        "items": [
+          {
+            "display_term": "Azure OpenAI",
+            "claim_ids": [
+              "claim-skill-ai-32e83e92d45d-aff4ac43cf28",
+              "claim-skill-ai-32e83e92d45d-dd3065dad6df"
+            ],
+            "capability_ids": [
+              "cap-applied-ai-azure"
+            ],
+            "basis": "Direct P1 match"
+          },
+          {
+            "display_term": "MCP",
+            "claim_ids": [
+              "claim-skill-ai-32e83e92d45d-aff4ac43cf28",
+              "claim-skill-ai-32e83e92d45d-dd3065dad6df"
+            ],
+            "capability_ids": [
+              "cap-applied-ai-mcp"
+            ],
+            "basis": "Direct P1 match"
+          },
+          {
+            "display_term": "RAG",
+            "claim_ids": [
+              "claim-skill-ai-32e83e92d45d-aff4ac43cf28",
+              "claim-skill-ai-32e83e92d45d-dd3065dad6df"
+            ],
+            "capability_ids": [
+              "cap-applied-ai-rag"
+            ],
+            "basis": "Direct P1 match"
+          },
+          {
+            "display_term": "Evals",
+            "claim_ids": [
+              "claim-skill-ai-32e83e92d45d-aff4ac43cf28",
+              "claim-skill-ai-32e83e92d45d-dd3065dad6df"
+            ],
+            "capability_ids": [
+              "cap-applied-ai-rag"
+            ],
+            "basis": "Direct P2 match"
+          }
+        ]
+      },
+      {
+        "category": "Backend & Systems",
+        "items": [
+          {
+            "display_term": "Python",
+            "claim_ids": [
+              "claim-skill-backend-10e08a419e85-2604fbbd4014",
+              "claim-skill-backend-10e08a419e85-940ccdc2212f"
+            ],
+            "capability_ids": [
+              "cap-applied-ai-api"
+            ],
+            "basis": "Direct P2 match"
+          },
+          {
+            "display_term": "Go",
+            "claim_ids": [
+              "claim-skill-backend-10e08a419e85-2604fbbd4014",
+              "claim-skill-backend-10e08a419e85-940ccdc2212f"
+            ],
+            "capability_ids": [
+              "cap-applied-ai-api"
+            ],
+            "basis": "Backend service development"
+          },
+          {
+            "display_term": "Kubernetes",
+            "claim_ids": [
+              "claim-skill-backend-10e08a419e85-2604fbbd4014",
+              "claim-skill-backend-10e08a419e85-940ccdc2212f"
+            ],
+            "capability_ids": [
+              "cap-applied-ai-obs"
+            ],
+            "basis": "Runtime container orchestration"
+          }
+        ]
+      },
+      {
+        "category": "Messaging & Infrastructure",
+        "items": [
+          {
+            "display_term": "Kafka",
+            "claim_ids": [
+              "claim-skill-backend-10e08a419e85-2604fbbd4014",
+              "claim-skill-backend-10e08a419e85-940ccdc2212f"
+            ],
+            "capability_ids": [
+              "cap-applied-ai-obs"
+            ],
+            "basis": "Streaming event pipelines"
+          },
+          {
+            "display_term": "Redis",
+            "claim_ids": [
+              "claim-skill-backend-10e08a419e85-2604fbbd4014",
+              "claim-skill-backend-10e08a419e85-940ccdc2212f"
+            ],
+            "capability_ids": [
+              "cap-applied-ai-obs"
+            ],
+            "basis": "Low latency caching"
+          }
+        ]
+      }
+    ]
+  },
+  "optional_sections": [
+    {
+      "section": "awards",
+      "decision": "remove",
+      "reason": "Standalone patent award not directly relevant to applied AI role."
+    }
+  ],
+  "warning_dispositions": [
+    {
+      "finding": "bullet_density",
+      "status": "accepted",
+      "reason": "Dense 5-bullet summary across 3 roles prioritized for single-page layout."
+    }
+  ]
+}

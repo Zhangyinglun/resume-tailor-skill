@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "plan_revision": 1,
+  "target_jd_fingerprint": "",
+  "items": [
+    {
+      "intent_id": "intent-summary",
+      "source_claim_ids": [
+        "claim-profile-profile-1900eab6c028-997d71ee98b1"
+      ],
+      "rendered_text": "Software engineer specializing in AI diagnostics and distributed APIs.",
+      "meaning_check": {
+        "facts_added": [],
+        "facts_removed": [],
+        "metrics_changed": [],
+        "ownership_changed": false
+      }
+    },
+    {
+      "intent_id": "intent-cloud-bullet-1",
+      "source_claim_ids": [
+        "claim-experience-example-cloud-software-en-8eb9c78240c8"
+      ],
+      "rendered_text": "Built an MCP diagnostic workflow on Azure OpenAI with tool calling.",
+      "meaning_check": {
+        "facts_added": [],
+        "facts_removed": [],
+        "metrics_changed": [],
+        "ownership_changed": false
+      }
+    },
+    {
+      "intent_id": "intent-cloud-bullet-2",
+      "source_claim_ids": [
+        "claim-experience-example-cloud-software-en-a6400262147e"
+      ],
+      "rendered_text": "Created RAG evaluations for incident diagnostics.",
+      "meaning_check": {
+        "facts_added": [],
+        "facts_removed": [],
+        "metrics_changed": [],
+        "ownership_changed": false
+      }
+    },
+    {
+      "intent_id": "intent-social-bullet-1",
+      "source_claim_ids": [
+        "claim-experience-example-social-software-e-a8aa84f9c93b"
+      ],
+      "rendered_text": "Built Go APIs serving 10M daily requests on Kubernetes.",
+      "meaning_check": {
+        "facts_added": [],
+        "facts_removed": [],
+        "metrics_changed": [],
+        "ownership_changed": false
+      }
+    },
+    {
+      "intent_id": "intent-social-bullet-2",
+      "source_claim_ids": [
+        "claim-experience-example-social-software-e-2def1f4e11fd"
+      ],
+      "rendered_text": "Reduced data latency with Kafka and Redis.",
+      "meaning_check": {
+        "facts_added": [],
+        "facts_removed": [],
+        "metrics_changed": [],
+        "ownership_changed": false
+      }
+    },
+    {
+      "intent_id": "intent-commerce-bullet-1",
+      "source_claim_ids": [
+        "claim-experience-example-commerce-software-8dd984c9f9fe"
+      ],
+      "rendered_text": "Built Java services handling 20K QPS with high availability.",
+      "meaning_check": {
+        "facts_added": [],
+        "facts_removed": [],
+        "metrics_changed": [],
+        "ownership_changed": false
+      }
+    }
+  ]
+}

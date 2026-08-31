@@ -1,0 +1,73 @@
+{
+  "position": "Applied AI Engineer",
+  "keywords": {
+    "P1": [
+      "MCP",
+      "Azure OpenAI",
+      "RAG"
+    ],
+    "P2": [
+      "Evals",
+      "Python",
+      "Tool Calling"
+    ],
+    "P3": [
+      "Observability",
+      "APIs",
+      "Incident Diagnostics"
+    ]
+  },
+  "capabilities": [
+    {
+      "capability_id": "cap-applied-ai-mcp",
+      "priority": "P1",
+      "name": "MCP tool integration",
+      "match_type": "direct",
+      "evidence_state": "sourced",
+      "claim_ids": []
+    },
+    {
+      "capability_id": "cap-applied-ai-azure",
+      "priority": "P1",
+      "name": "Azure OpenAI deployment",
+      "match_type": "direct",
+      "evidence_state": "sourced",
+      "claim_ids": []
+    },
+    {
+      "capability_id": "cap-applied-ai-rag",
+      "priority": "P1",
+      "name": "RAG pipeline and evaluations",
+      "match_type": "direct",
+      "evidence_state": "sourced",
+      "claim_ids": []
+    },
+    {
+      "capability_id": "cap-applied-ai-api",
+      "priority": "P2",
+      "name": "API development and tool calling",
+      "match_type": "direct",
+      "evidence_state": "sourced",
+      "claim_ids": []
+    },
+    {
+      "capability_id": "cap-applied-ai-obs",
+      "priority": "P3",
+      "name": "Incident diagnostics and observability",
+      "match_type": "direct",
+      "evidence_state": "sourced",
+      "claim_ids": []
+    }
+  ],
+  "alignment": {
+    "matched": [
+      "cap-applied-ai-mcp",
+      "cap-applied-ai-azure",
+      "cap-applied-ai-rag",
+      "cap-applied-ai-api",
+      "cap-applied-ai-obs"
+    ],
+    "transferable": [],
+    "gaps": []
+  }
+}

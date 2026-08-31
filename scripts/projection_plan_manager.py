@@ -794,7 +794,7 @@ def _materialize_manifest(
         "generated_at": _now(),
         "entries": entries,
         "removed_entries": removed_entries,
-        "warning_dispositions": [],
+        "warning_dispositions": copy.deepcopy(plan.get("warning_dispositions", [])),
     }
 
 
