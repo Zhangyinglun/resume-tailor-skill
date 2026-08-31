@@ -6,8 +6,10 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import re
 import sys
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
@@ -15,12 +17,16 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from scripts.audit_factual_integrity import audit_resume
 from scripts.resume_cache_manager import validate_jd_analysis
 from scripts.resume_shared import (
     canonical_json_fingerprint,
     entity_anchor,
+    iter_resume_text_fields,
     load_json_file,
     stable_identifier,
+    validate_resume_content,
+    write_json_file,
 )
 
 CACHE_DIR = "cache"
@@ -31,6 +37,18 @@ MANIFEST_NAME = "resume-changes.json"
 LEDGER_NAME = "candidate-evidence.json"
 SNAPSHOT_NAME = "base-resume.json"
 JD_NAME = "jd-analysis.json"
+LAST_PLAN_NAME = "projection-plan.last-built.json"
+LAST_LANGUAGE_NAME = "projection-language.last-built.json"
+
+_FIRST_PERSON_RE = re.compile(r"(?<!\w)(?:I|me|my|mine|we|our|ours)(?!\w)", re.IGNORECASE)
+_CHATBOT_RE = re.compile(
+    r"\b(?:I hope this helps|Would you like|Let me know|Great question|Certainly!)\b",
+    re.IGNORECASE,
+)
+_PLACEHOLDER_RE = re.compile(r"\[(?:To be filled|Insert|Placeholder)[^\]]*\]", re.IGNORECASE)
+_HTML_PLACEHOLDER_RE = re.compile(
+    r"<!--[\s\S]*?-->|<[^>]+>\s*(?:TODO|TBD)?\s*</[^>]+>", re.IGNORECASE
+)
 
 PlanStatus = Literal["needs_clarification", "ready", "revision_required"]
 
@@ -54,6 +72,8 @@ def _workspace_paths(workspace: Path) -> dict[str, Path]:
         "jd": cache_dir / JD_NAME,
         "plan": cache_dir / PLAN_NAME,
         "language": cache_dir / LANGUAGE_NAME,
+        "last_plan": cache_dir / LAST_PLAN_NAME,
+        "last_language": cache_dir / LAST_LANGUAGE_NAME,
     }
 
 
@@ -169,9 +189,7 @@ def _validate_clarifications(
         raise ValueError("clarifications must be an array.")
 
     if len(clarifications) > 5:
-        raise ValueError(
-            f"Maximum 5 clarification questions allowed, got {len(clarifications)}."
-        )
+        raise ValueError(f"Maximum 5 clarification questions allowed, got {len(clarifications)}.")
 
     if plan.get("status") == "needs_clarification":
         if len(clarifications) == 0:
@@ -291,7 +309,9 @@ def _validate_intents(
         entity_ids_in_intent: set[str] = set()
         for c_idx, claim_id in enumerate(claim_ids):
             if not isinstance(claim_id, str) or not claim_id.strip():
-                raise ValueError(f"{context_name} '{intent_id}'.claim_ids[{c_idx}] must be a string.")
+                raise ValueError(
+                    f"{context_name} '{intent_id}'.claim_ids[{c_idx}] must be a string."
+                )
             if claim_id not in claim_index:
                 raise ValueError(
                     f"Intent '{intent_id}' references unknown, inactive, or revoked claim_id: {claim_id}"
@@ -316,21 +336,29 @@ def _validate_intents(
             raise ValueError(f"{context_name} '{intent_id}'.capability_ids must be an array.")
         for cap_id in cap_ids:
             if not isinstance(cap_id, str) or not cap_id.strip():
-                raise ValueError(f"{context_name} '{intent_id}' capability_ids must contain non-empty strings.")
+                raise ValueError(
+                    f"{context_name} '{intent_id}' capability_ids must contain non-empty strings."
+                )
             if cap_id not in capability_index:
                 raise ValueError(f"Intent '{intent_id}' references unknown capability_id: {cap_id}")
 
         content_intent_text = intent.get("content_intent")
         if not isinstance(content_intent_text, str) or not content_intent_text.strip():
-            raise ValueError(f"{context_name} '{intent_id}'.content_intent must be a non-empty string.")
+            raise ValueError(
+                f"{context_name} '{intent_id}'.content_intent must be a non-empty string."
+            )
 
         target_lines = intent.get("target_lines")
         if target_lines is not None and (not isinstance(target_lines, int) or target_lines < 1):
-            raise ValueError(f"{context_name} '{intent_id}'.target_lines must be a positive integer.")
+            raise ValueError(
+                f"{context_name} '{intent_id}'.target_lines must be a positive integer."
+            )
 
     summary_intent = plan.get("summary_intent")
     if isinstance(summary_intent, dict) and summary_intent:
-        validate_intent_record(summary_intent, expected_entity_id=None, context_name="summary_intent")
+        validate_intent_record(
+            summary_intent, expected_entity_id=None, context_name="summary_intent"
+        )
 
     for exp_plan in plan.get("experience_plans", []):
         if isinstance(exp_plan, dict):
@@ -372,9 +400,7 @@ def _validate_skill_groups(
             )
     else:
         if len(groups) > 4:
-            raise ValueError(
-                f"Skills plan cannot contain more than 4 groups, got {len(groups)}."
-            )
+            raise ValueError(f"Skills plan cannot contain more than 4 groups, got {len(groups)}.")
 
     for g_idx, group in enumerate(groups):
         if not isinstance(group, dict):
@@ -417,7 +443,9 @@ def _validate_skill_groups(
             cap_ids = item.get("capability_ids")
             if cap_ids is not None:
                 if not isinstance(cap_ids, list):
-                    raise ValueError(f"Skill item '{display_term}'.capability_ids must be an array.")
+                    raise ValueError(
+                        f"Skill item '{display_term}'.capability_ids must be an array."
+                    )
                 for cap_id in cap_ids:
                     if not isinstance(cap_id, str) or not cap_id.strip():
                         raise ValueError(
@@ -470,6 +498,349 @@ def validate_projection_plan(workspace: Path, plan: dict[str, Any]) -> dict[str,
     }
 
 
+def validate_language_output(
+    plan: dict[str, Any],
+    language: dict[str, Any],
+    ledger: dict[str, Any],
+    *,
+    previous_plan: dict[str, Any] | None = None,
+    previous_language: dict[str, Any] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Validate model-rendered language against the exact Projection Plan intents."""
+    if language.get("schema_version") != 1:
+        raise ValueError("Language Output schema_version must be 1.")
+    if language.get("plan_revision") != plan.get("revision"):
+        raise ValueError("Language Output plan revision does not match Projection Plan revision.")
+    if language.get("target_jd_fingerprint") != plan.get("target_jd_fingerprint"):
+        raise ValueError("Language Output JD fingerprint does not match Projection Plan.")
+
+    intents = {str(item["intent_id"]): item for item in _intent_records(plan)}
+    items = language.get("items")
+    if not isinstance(items, list):
+        raise ValueError("Language Output items must be an array.")
+    by_intent: dict[str, dict[str, Any]] = {}
+    active_claims = _active_claim_index(ledger)
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            raise ValueError(f"Language Output items[{index}] must be an object.")
+        intent_id = item.get("intent_id")
+        if not isinstance(intent_id, str) or not intent_id.strip():
+            raise ValueError(f"Language Output items[{index}].intent_id must be non-empty.")
+        if intent_id in by_intent:
+            raise ValueError(f"Language Output contains duplicate intent: {intent_id}")
+        if intent_id not in intents:
+            raise ValueError(f"Language Output contains extra intent: {intent_id}")
+        if item.get("source_claim_ids") != intents[intent_id].get("claim_ids"):
+            raise ValueError(f"Language Output claim links differ for intent '{intent_id}'.")
+        for claim_id in item["source_claim_ids"]:
+            if claim_id not in active_claims:
+                raise ValueError(
+                    f"Language Output claim links include inactive claim '{claim_id}'."
+                )
+        rendered_text = item.get("rendered_text")
+        if not isinstance(rendered_text, str) or not rendered_text.strip():
+            raise ValueError(f"Language Output rendered text is empty for intent '{intent_id}'.")
+        if _CHATBOT_RE.search(rendered_text):
+            raise ValueError(f"Language Output contains chatbot wording for intent '{intent_id}'.")
+        if _FIRST_PERSON_RE.search(rendered_text):
+            raise ValueError(
+                f"Language Output contains first-person wording for intent '{intent_id}'."
+            )
+        if _HTML_PLACEHOLDER_RE.search(rendered_text):
+            raise ValueError(
+                f"Language Output contains HTML placeholder wording for intent '{intent_id}'."
+            )
+        if _PLACEHOLDER_RE.search(rendered_text):
+            raise ValueError(
+                f"Language Output contains placeholder wording for intent '{intent_id}'."
+            )
+        meaning_check = item.get("meaning_check")
+        if not isinstance(meaning_check, dict):
+            raise ValueError(f"Language Output meaning_check is required for intent '{intent_id}'.")
+        for field in ("facts_added", "facts_removed", "metrics_changed"):
+            if meaning_check.get(field) != []:
+                raise ValueError(f"Language Output {field} must be empty for intent '{intent_id}'.")
+        if meaning_check.get("ownership_changed") is not False:
+            raise ValueError(
+                f"Language Output ownership_changed must be false for intent '{intent_id}'."
+            )
+        by_intent[intent_id] = item
+
+    missing = sorted(set(intents) - set(by_intent))
+    if missing:
+        raise ValueError(f"Language Output is missing intent: {', '.join(missing)}")
+
+    if int(plan.get("revision", 0)) > 1:
+        if previous_plan is None or previous_language is None:
+            raise ValueError("Revision 2 or 3 requires previous plan and language artifacts.")
+        previous_intents = {str(item["intent_id"]): item for item in _intent_records(previous_plan)}
+        previous_items = {
+            str(item.get("intent_id")): item
+            for item in previous_language.get("items", [])
+            if isinstance(item, dict)
+        }
+        stable_fields = ("claim_ids", "capability_ids", "content_intent", "target_lines")
+        for intent_id, intent in intents.items():
+            old_intent = previous_intents.get(intent_id)
+            old_item = previous_items.get(intent_id)
+            if old_intent is None or old_item is None:
+                continue
+            unchanged = all(intent.get(field) == old_intent.get(field) for field in stable_fields)
+            if unchanged and by_intent[intent_id]["rendered_text"] != old_item.get("rendered_text"):
+                raise ValueError(
+                    f"Language Output has unrelated wording drift for intent '{intent_id}'."
+                )
+    return by_intent
+
+
+def _source_payload(snapshot: dict[str, Any]) -> dict[str, Any]:
+    payload = copy.deepcopy(snapshot)
+    payload.pop("source_fingerprint", None)
+    payload.pop("captured_at", None)
+    return payload
+
+
+def _materialize_skill_groups(skills_plan: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        {
+            "category": group["category"],
+            "items": [item["display_term"] for item in group["items"]],
+        }
+        for group in skills_plan["groups"]
+    ]
+
+
+def _materialize_experience(
+    source_experience: list[dict[str, Any]],
+    experience_plans: list[dict[str, Any]],
+    language_by_intent: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    plan_by_entity = {plan["entity_id"]: plan for plan in experience_plans}
+    materialized: list[dict[str, Any]] = []
+    for index, source_entry in enumerate(source_experience):
+        _, identity = entity_anchor(
+            {"experience": source_experience}, "experience", f"experience[{index}]"
+        )
+        entity_id = stable_identifier("experience", identity)
+        entry = copy.deepcopy(source_entry)
+        entry["bullets"] = [
+            language_by_intent[intent["intent_id"]]["rendered_text"]
+            for intent in plan_by_entity[entity_id]["content_intents"]
+        ]
+        materialized.append(entry)
+    return materialized
+
+
+def _apply_optional_section_decisions(
+    resume: dict[str, Any], optional_sections: list[dict[str, Any]]
+) -> None:
+    for decision in optional_sections:
+        section = decision.get("section") or decision.get("section_name")
+        action = decision.get("decision") or decision.get("action")
+        if isinstance(section, str) and action == "remove":
+            resume.pop(section, None)
+
+
+def _materialize_resume(
+    snapshot: dict[str, Any],
+    plan: dict[str, Any],
+    language_by_intent: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    resume = _source_payload(snapshot)
+    resume["summary"] = language_by_intent[plan["summary_intent"]["intent_id"]]["rendered_text"]
+    resume["skills"] = _materialize_skill_groups(plan["skills_plan"])
+    resume["experience"] = _materialize_experience(
+        resume.get("experience", []), plan["experience_plans"], language_by_intent
+    )
+    _apply_optional_section_decisions(resume, plan.get("optional_sections", []))
+    validate_resume_content(resume, require_non_empty=True)
+    return resume
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _materialize_manifest(
+    resume: dict[str, Any],
+    snapshot: dict[str, Any],
+    ledger: dict[str, Any],
+    jd_analysis: dict[str, Any],
+    plan: dict[str, Any],
+    language_by_intent: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    claim_index = _active_claim_index(ledger)
+    source = _source_payload(snapshot)
+    source_fields = {path: text for path, text, _, _ in iter_resume_text_fields(source)}
+    source_claims: dict[str, tuple[str, str]] = {}
+    for claim_id, (entity_id, claim) in claim_index.items():
+        source_path = claim.get("provenance", {}).get("source_path")
+        if isinstance(source_path, str):
+            source_claims[source_path] = (entity_id, claim_id)
+
+    bindings: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
+        "summary": (plan["summary_intent"], language_by_intent[plan["summary_intent"]["intent_id"]])
+    }
+    exp_plan_by_entity = {item["entity_id"]: item for item in plan["experience_plans"]}
+    for index, _ in enumerate(resume.get("experience", [])):
+        _, identity = entity_anchor(resume, "experience", f"experience[{index}]")
+        exp_plan = exp_plan_by_entity[stable_identifier("experience", identity)]
+        for bullet_index, intent in enumerate(exp_plan["content_intents"]):
+            bindings[f"experience[{index}].bullets[{bullet_index}]"] = (
+                intent,
+                language_by_intent[intent["intent_id"]],
+            )
+
+    skill_bindings: dict[str, dict[str, Any]] = {}
+    category_groups: dict[str, list[str]] = {}
+    for group_index, group in enumerate(plan["skills_plan"]["groups"]):
+        item_paths = []
+        for item_index, item in enumerate(group["items"]):
+            path = f"skills[{group_index}].items[{item_index}]"
+            item_paths.append(path)
+            skill_bindings[path] = item
+        category_groups[f"skills[{group_index}].category"] = item_paths
+
+    entries: list[dict[str, Any]] = []
+    for path, text, _, _ in iter_resume_text_fields(resume):
+        if path in category_groups:
+            entries.append(
+                {
+                    "projection_path": path,
+                    "operation": "REWORD",
+                    "rendered_text": text,
+                    "binding_mode": "presentation",
+                    "entity_id": None,
+                    "source_claim_ids": [],
+                    "grouped_item_paths": category_groups[path],
+                    "match_type": "direct",
+                    "semantic_normalizations": [],
+                    "reason": "Target-specific Skill Presentation Group label.",
+                }
+            )
+        elif path in skill_bindings:
+            item = skill_bindings[path]
+            entity_id = claim_index[item["claim_ids"][0]][0]
+            entries.append(
+                {
+                    "projection_path": path,
+                    "operation": "REORDER",
+                    "rendered_text": text,
+                    "binding_mode": "single_entity",
+                    "entity_id": entity_id,
+                    "source_claim_ids": item["claim_ids"],
+                    "match_type": "direct",
+                    "semantic_normalizations": [],
+                    "reason": item.get(
+                        "basis", "Evidence-bound skill selected for the target role."
+                    ),
+                }
+            )
+        elif path in bindings:
+            intent, language_item = bindings[path]
+            entity_id = claim_index[intent["claim_ids"][0]][0]
+            entries.append(
+                {
+                    "projection_path": path,
+                    "operation": intent.get("operation", "REWORD"),
+                    "rendered_text": text,
+                    "binding_mode": "single_entity",
+                    "entity_id": entity_id,
+                    "source_claim_ids": intent["claim_ids"],
+                    "match_type": "direct",
+                    "semantic_normalizations": language_item.get("semantic_normalizations", []),
+                    "reason": intent["content_intent"],
+                }
+            )
+        else:
+            source_binding = source_claims.get(path)
+            if source_binding is None:
+                raise ValueError(f"No exact source claim binding for unchanged field '{path}'.")
+            entity_id, claim_id = source_binding
+            entries.append(
+                {
+                    "projection_path": path,
+                    "operation": "KEEP",
+                    "rendered_text": text,
+                    "binding_mode": "single_entity",
+                    "entity_id": entity_id,
+                    "source_claim_ids": [claim_id],
+                    "match_type": "direct",
+                    "semantic_normalizations": [],
+                    "reason": "Unchanged Source Snapshot field.",
+                }
+            )
+
+    current_pairs = {(path, text) for path, text, _, _ in iter_resume_text_fields(resume)}
+    removed_entries = []
+    for path, text in source_fields.items():
+        if (path, text) in current_pairs:
+            continue
+        binding = source_claims.get(path)
+        removed_entries.append(
+            {
+                "source_path": path,
+                "source_text": text,
+                "entity_id": binding[0] if binding else None,
+                "source_claim_ids": [binding[1]] if binding else [],
+                "operation": "REMOVE",
+                "reason": "Source field was replaced or removed by the Projection Plan.",
+            }
+        )
+    return {
+        "schema_version": 1,
+        "target_jd_fingerprint": canonical_json_fingerprint(jd_analysis),
+        "resume_fingerprint": canonical_json_fingerprint(resume),
+        "generated_at": _now(),
+        "entries": entries,
+        "removed_entries": removed_entries,
+        "warning_dispositions": [],
+    }
+
+
+def build_projection(workspace: Path, plan_path: Path, language_path: Path) -> BuildResult:
+    workspace = workspace.expanduser().resolve()
+    plan = load_json_file(plan_path.expanduser().resolve())
+    validation = validate_projection_plan(workspace, plan)
+    if validation["status"] == "needs_clarification":
+        return BuildResult(
+            status="needs_clarification",
+            resume_path=None,
+            manifest_path=None,
+            clarifications=tuple(validation["clarifications"]),
+        )
+    paths = _workspace_paths(workspace)
+    language = load_json_file(language_path.expanduser().resolve())
+    ledger = load_json_file(paths["ledger"])
+    snapshot = load_json_file(paths["snapshot"])
+    jd_analysis = load_json_file(paths["jd"])
+    previous_plan = load_json_file(paths["last_plan"]) if paths["last_plan"].exists() else None
+    previous_language = (
+        load_json_file(paths["last_language"]) if paths["last_language"].exists() else None
+    )
+    language_by_intent = validate_language_output(
+        plan, language, ledger, previous_plan=previous_plan, previous_language=previous_language
+    )
+    resume = _materialize_resume(snapshot, plan, language_by_intent)
+    manifest = _materialize_manifest(
+        resume, snapshot, ledger, jd_analysis, plan, language_by_intent
+    )
+    audit = audit_resume(resume, manifest, ledger, base_resume=snapshot)
+    if audit["verdict"] != "PASS":
+        codes = ", ".join(str(item.get("code")) for item in audit["findings"])
+        raise ValueError(f"Factual audit failed: {codes}")
+    write_json_file(paths["working"], resume)
+    write_json_file(paths["manifest"], manifest)
+    write_json_file(paths["last_plan"], plan)
+    write_json_file(paths["last_language"], language)
+    return BuildResult(
+        status="built",
+        resume_path=paths["working"],
+        manifest_path=paths["manifest"],
+        clarifications=(),
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Validate and materialize model-produced resume projection artifacts."
@@ -489,6 +860,10 @@ def main() -> int:
         default=None,
         help="Path to projection-plan.json (defaults to workspace/cache/projection-plan.json)",
     )
+    build_parser = subparsers.add_parser("build", help="Build a validated resume projection")
+    build_parser.add_argument("--workspace", type=Path, required=True)
+    build_parser.add_argument("--plan", type=Path, required=True)
+    build_parser.add_argument("--language", type=Path, required=True)
 
     args = parser.parse_args()
 
@@ -508,6 +883,22 @@ def main() -> int:
             return 0
         except (FileNotFoundError, OSError, ValueError) as err:
             sys.stderr.write(f"Validation error: {err}\n")
+            return 1
+        except Exception as err:  # noqa: BLE001
+            sys.stderr.write(f"Unexpected error: {err}\n")
+            return 1
+
+    if args.action == "build":
+        try:
+            result = build_projection(args.workspace, args.plan, args.language)
+            payload = asdict(result)
+            payload["resume_path"] = str(result.resume_path) if result.resume_path else None
+            payload["manifest_path"] = str(result.manifest_path) if result.manifest_path else None
+            payload["clarifications"] = list(result.clarifications)
+            sys.stdout.write(json.dumps(payload, indent=2) + "\n")
+            return 2 if result.status == "needs_clarification" else 0
+        except (FileNotFoundError, OSError, ValueError) as err:
+            sys.stderr.write(f"Build error: {err}\n")
             return 1
         except Exception as err:  # noqa: BLE001
             sys.stderr.write(f"Unexpected error: {err}\n")
