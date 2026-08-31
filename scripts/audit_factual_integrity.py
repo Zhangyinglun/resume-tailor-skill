@@ -206,6 +206,105 @@ def _declared_normalizations(entry: dict[str, Any]) -> dict[str, str]:
     return result
 
 
+_SKILL_CATEGORY_PATH_RE = re.compile(r"^skills\[(\d+)\]\.category$")
+_SKILL_ITEM_PATH_RE = re.compile(r"^skills\[(\d+)\]\.items\[(\d+)\]$")
+
+
+def _binding_mode(entry: dict[str, Any]) -> str:
+    mode = str(entry.get("binding_mode", "single_entity"))
+    if mode not in {"single_entity", "presentation"}:
+        return "invalid"
+    return mode
+
+
+def _audit_skill_presentation_entry(
+    path: str,
+    text: str,
+    entry: dict[str, Any],
+    by_path: dict[str, dict[str, Any]],
+    claim_index: dict[str, tuple[dict[str, Any], dict[str, Any]]],
+) -> list[dict[str, str]]:
+    """Validate a dynamic Skills category against its item bindings."""
+    findings: list[dict[str, str]] = []
+    cat_match = _SKILL_CATEGORY_PATH_RE.match(path)
+    if not cat_match:
+        findings.append(
+            _finding(
+                "INVALID_PRESENTATION_BINDING",
+                path,
+                "Presentation binding is only permitted for skill category fields.",
+            )
+        )
+        return findings
+
+    cat_group_idx = cat_match.group(1)
+    grouped = entry.get("grouped_item_paths")
+    if not isinstance(grouped, list) or not grouped:
+        findings.append(
+            _finding(
+                "INVALID_PRESENTATION_BINDING",
+                path,
+                "Skill presentation category entry must declare non-empty grouped_item_paths.",
+            )
+        )
+        return findings
+
+    supported_terms: set[str] = set()
+    for item_path in grouped:
+        if not isinstance(item_path, str):
+            findings.append(
+                _finding(
+                    "INVALID_PRESENTATION_BINDING",
+                    path,
+                    "Grouped item paths must be strings.",
+                )
+            )
+            continue
+        item_match = _SKILL_ITEM_PATH_RE.match(item_path)
+        if not item_match or item_match.group(1) != cat_group_idx:
+            findings.append(
+                _finding(
+                    "INVALID_PRESENTATION_BINDING",
+                    path,
+                    f"Grouped item path `{item_path}` does not belong to skills group {cat_group_idx}.",
+                )
+            )
+            continue
+        item_entry = by_path.get(item_path)
+        if item_entry is None:
+            findings.append(
+                _finding(
+                    "INVALID_PRESENTATION_BINDING",
+                    path,
+                    f"Grouped item path `{item_path}` has no manifest entry.",
+                )
+            )
+            continue
+        for claim_id in item_entry.get("source_claim_ids", []):
+            pair = claim_index.get(str(claim_id))
+            if pair is not None:
+                _, claim = pair
+                claim_text = str(claim.get("claim_text", ""))
+                supported_terms.update(_mentioned_terms(claim_text))
+                for tool in claim.get("tools", []):
+                    supported_terms.add(str(tool).casefold())
+
+    normalizations = _declared_normalizations(entry)
+    for term in _mentioned_terms(text) - supported_terms:
+        if term in normalizations and term in _NORMALIZABLE_CONCEPTS:
+            continue
+        if any(_is_lexical_stem_variant(term, supported) for supported in supported_terms):
+            continue
+        findings.append(
+            _finding(
+                "UNSUPPORTED_PRESENTATION_TERM",
+                path,
+                f"Term `{term}` in skill presentation category is not supported by grouped item claims.",
+            )
+        )
+    return findings
+
+
 def audit_resume(
     resume: dict[str, Any],
     manifest: dict[str, Any],
@@ -287,25 +386,62 @@ def audit_resume(
                 _finding("INVALID_OPERATION", path, "Manifest operation is not recognized.")
             )
 
-        expected_entity_id = stable_identifier(
-            entity_type, entity_anchor(resume, entity_type, entity_key)[1]
-        )
-        if not entry.get("entity_id"):
+        mode = _binding_mode(entry)
+        if mode == "invalid":
             findings.append(
                 _finding(
-                    "MISSING_ENTITY_BINDING",
+                    "INVALID_PRESENTATION_BINDING",
                     path,
-                    "Substantive field must declare its Evidence Entity.",
+                    f"Invalid binding_mode `{entry.get('binding_mode')}`.",
                 )
             )
-        elif entry.get("entity_id") != expected_entity_id:
-            findings.append(
-                _finding(
-                    "PATH_ENTITY_MISMATCH",
-                    path,
-                    f"Manifest entity `{entry.get('entity_id')}` does not match structural entity `{expected_entity_id}` for this path.",
+            continue
+
+        if mode == "presentation":
+            if not _SKILL_CATEGORY_PATH_RE.match(path):
+                findings.append(
+                    _finding(
+                        "INVALID_PRESENTATION_BINDING",
+                        path,
+                        "Presentation binding mode is only permitted for skill category fields.",
+                    )
                 )
+                continue
+            findings.extend(
+                _audit_skill_presentation_entry(path, text, entry, by_path, claim_index)
             )
+            continue
+
+        is_skill_item = bool(_SKILL_ITEM_PATH_RE.match(path))
+        if not is_skill_item:
+            expected_entity_id = stable_identifier(
+                entity_type, entity_anchor(resume, entity_type, entity_key)[1]
+            )
+            if not entry.get("entity_id"):
+                findings.append(
+                    _finding(
+                        "MISSING_ENTITY_BINDING",
+                        path,
+                        "Substantive field must declare its Evidence Entity.",
+                    )
+                )
+            elif entry.get("entity_id") != expected_entity_id:
+                findings.append(
+                    _finding(
+                        "PATH_ENTITY_MISMATCH",
+                        path,
+                        f"Manifest entity `{entry.get('entity_id')}` does not match structural entity `{expected_entity_id}` for this path.",
+                    )
+                )
+        else:
+            if not entry.get("entity_id"):
+                findings.append(
+                    _finding(
+                        "MISSING_ENTITY_BINDING",
+                        path,
+                        "Substantive field must declare its Evidence Entity.",
+                    )
+                )
 
         claim_ids = entry.get("source_claim_ids", [])
         if not isinstance(claim_ids, list) or not claim_ids:

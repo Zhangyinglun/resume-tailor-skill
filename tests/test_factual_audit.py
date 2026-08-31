@@ -473,6 +473,262 @@ class FactualAuditTests(unittest.TestCase):
             self.assertIn("TOOL_DRIFT", codes)
             self.assertIn("UNSUPPORTED_SCOPE", codes)
 
+    def test_dynamic_skills_presentation_binding_passes_audit(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            base_resume = sample_resume()
+            initialized = initialize_workspace(workspace, base_resume)
+            ledger = initialized["evidence_ledger"]
+
+            # Set up experience entity with an Azure OpenAI claim
+            exp_entity = next(
+                entity for entity in ledger["entities"] if entity["entity_type"] == "experience"
+            )
+            experience_entity_id = exp_entity["entity_id"]
+            azure_claim_id = "claim-exp-azure-openai"
+            exp_entity["claims"].append(
+                {
+                    "claim_id": azure_claim_id,
+                    "claim_type": "responsibility",
+                    "claim_text": "Built AI diagnostic services on Azure OpenAI.",
+                    "evidence_state": "sourced",
+                    "status": "active",
+                    "provenance": {
+                        "source_type": "source_snapshot",
+                        "source_fingerprint": initialized["source_snapshot"]["source_fingerprint"],
+                        "source_path": "experience[0].bullets[0]",
+                        "original_excerpt": "Built AI diagnostic services on Azure OpenAI.",
+                    },
+                    "tools": ["Azure OpenAI"],
+                    "metrics": [],
+                    "ownership_level": "implemented",
+                    "sourced_at": "2026-01-01T00:00:00Z",
+                    "confirmed_at": None,
+                    "revoked_at": None,
+                    "supersedes": [],
+                }
+            )
+
+            # Set up skill entity with a RAG claim
+            skill_entity = next(
+                entity for entity in ledger["entities"] if entity["entity_type"] == "skill"
+            )
+            skill_entity_id = skill_entity["entity_id"]
+            rag_claim_id = "claim-skill-rag"
+            skill_entity["claims"].append(
+                {
+                    "claim_id": rag_claim_id,
+                    "claim_type": "responsibility",
+                    "claim_text": "Built retrieval systems with RAG architectures.",
+                    "evidence_state": "candidate_confirmed",
+                    "status": "active",
+                    "provenance": {
+                        "source_type": "candidate_confirmation",
+                        "source_fingerprint": initialized["source_snapshot"]["source_fingerprint"],
+                        "source_path": "skills[0].items",
+                        "original_excerpt": "RAG",
+                    },
+                    "tools": ["RAG"],
+                    "metrics": [],
+                    "ownership_level": "implemented",
+                    "sourced_at": "2026-01-01T00:00:00Z",
+                    "confirmed_at": "2026-01-01T00:00:00Z",
+                    "revoked_at": None,
+                    "supersedes": [],
+                }
+            )
+
+            resume = copy.deepcopy(base_resume)
+            resume["skills"] = [
+                {
+                    "category": "AI Platforms & Tooling",
+                    "items": ["Azure OpenAI", "RAG"],
+                }
+            ]
+
+            rebuilt = rebuild_tailoring_manifest(workspace)
+            base_entries = [
+                entry
+                for entry in rebuilt["manifest"]["entries"]
+                if not entry["projection_path"].startswith("skills")
+            ]
+            skill_entries = [
+                {
+                    "projection_path": "skills[0].category",
+                    "operation": "REWORD",
+                    "rendered_text": "AI Platforms & Tooling",
+                    "binding_mode": "presentation",
+                    "entity_id": None,
+                    "source_claim_ids": [],
+                    "grouped_item_paths": ["skills[0].items[0]", "skills[0].items[1]"],
+                    "match_type": "direct",
+                    "semantic_normalizations": [],
+                    "reason": "Groups selected AI platform evidence for display.",
+                },
+                {
+                    "projection_path": "skills[0].items[0]",
+                    "operation": "LEAD_WITH",
+                    "rendered_text": "Azure OpenAI",
+                    "binding_mode": "single_entity",
+                    "entity_id": experience_entity_id,
+                    "source_claim_ids": [azure_claim_id],
+                    "match_type": "direct",
+                    "semantic_normalizations": [],
+                    "reason": "Direct target capability.",
+                },
+                {
+                    "projection_path": "skills[0].items[1]",
+                    "operation": "KEEP",
+                    "rendered_text": "RAG",
+                    "binding_mode": "single_entity",
+                    "entity_id": skill_entity_id,
+                    "source_claim_ids": [rag_claim_id],
+                    "match_type": "direct",
+                    "semantic_normalizations": [],
+                    "reason": "Used by selected experience evidence.",
+                },
+            ]
+            manifest = {
+                "schema_version": 1,
+                "target_jd_fingerprint": None,
+                "resume_fingerprint": canonical_json_fingerprint(resume),
+                "generated_at": "2026-01-01T00:00:00Z",
+                "entries": base_entries + skill_entries,
+                "removed_entries": [
+                    {
+                        "source_path": "skills[0].category",
+                        "source_text": base_resume["skills"][0]["category"],
+                        "entity_id": skill_entity_id,
+                        "source_claim_ids": [],
+                        "operation": "REMOVE",
+                        "reason": "Replaced by presentation category.",
+                    },
+                    {
+                        "source_path": "skills[0].items",
+                        "source_text": base_resume["skills"][0]["items"],
+                        "entity_id": skill_entity_id,
+                        "source_claim_ids": [],
+                        "operation": "REMOVE",
+                        "reason": "Replaced by itemized presentation items.",
+                    },
+                ],
+                "warning_dispositions": [],
+            }
+
+            report = audit_resume(resume, manifest, ledger, base_resume=base_resume)
+            self.assertEqual(report["verdict"], "PASS")
+            self.assertEqual(report["findings"], [])
+
+    def test_invalid_presentation_binding_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            base_resume = sample_resume()
+            initialized = initialize_workspace(workspace, base_resume)
+            ledger = initialized["evidence_ledger"]
+            rebuilt = rebuild_tailoring_manifest(workspace)
+
+            resume = copy.deepcopy(base_resume)
+            manifest = rebuilt["manifest"]
+            summary_entry = next(
+                entry for entry in manifest["entries"] if entry["projection_path"] == "summary"
+            )
+            summary_entry["binding_mode"] = "presentation"
+            summary_entry["grouped_item_paths"] = ["skills[0].items[0]"]
+
+            report = audit_resume(resume, manifest, ledger, base_resume=base_resume)
+            self.assertEqual(report["verdict"], "FAIL")
+            self.assertIn(
+                "INVALID_PRESENTATION_BINDING",
+                {finding["code"] for finding in report["findings"]},
+            )
+
+    def test_unsupported_presentation_term_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            base_resume = sample_resume()
+            initialized = initialize_workspace(workspace, base_resume)
+            ledger = initialized["evidence_ledger"]
+
+            exp_entity = next(
+                entity for entity in ledger["entities"] if entity["entity_type"] == "experience"
+            )
+            exp_entity["claims"].append(
+                {
+                    "claim_id": "claim-exp-azure",
+                    "claim_type": "responsibility",
+                    "claim_text": "Built services on Azure OpenAI.",
+                    "evidence_state": "sourced",
+                    "status": "active",
+                    "provenance": {
+                        "source_type": "source_snapshot",
+                        "source_fingerprint": initialized["source_snapshot"]["source_fingerprint"],
+                        "source_path": "experience[0].bullets[0]",
+                        "original_excerpt": "Built services on Azure OpenAI.",
+                    },
+                    "tools": ["Azure OpenAI"],
+                    "metrics": [],
+                    "ownership_level": "implemented",
+                    "sourced_at": "2026-01-01T00:00:00Z",
+                    "confirmed_at": None,
+                    "revoked_at": None,
+                    "supersedes": [],
+                }
+            )
+
+            resume = copy.deepcopy(base_resume)
+            resume["skills"] = [
+                {
+                    "category": "OAuth & AI Platforms",
+                    "items": ["Azure OpenAI"],
+                }
+            ]
+
+            manifest = {
+                "schema_version": 1,
+                "target_jd_fingerprint": None,
+                "resume_fingerprint": canonical_json_fingerprint(resume),
+                "generated_at": "2026-01-01T00:00:00Z",
+                "entries": [
+                    entry
+                    for entry in rebuild_tailoring_manifest(workspace)["manifest"]["entries"]
+                    if not entry["projection_path"].startswith("skills")
+                ]
+                + [
+                    {
+                        "projection_path": "skills[0].category",
+                        "operation": "REWORD",
+                        "rendered_text": "OAuth & AI Platforms",
+                        "binding_mode": "presentation",
+                        "entity_id": None,
+                        "source_claim_ids": [],
+                        "grouped_item_paths": ["skills[0].items[0]"],
+                        "match_type": "direct",
+                        "semantic_normalizations": [],
+                        "reason": "Groups AI platform evidence.",
+                    },
+                    {
+                        "projection_path": "skills[0].items[0]",
+                        "operation": "LEAD_WITH",
+                        "rendered_text": "Azure OpenAI",
+                        "binding_mode": "single_entity",
+                        "entity_id": exp_entity["entity_id"],
+                        "source_claim_ids": ["claim-exp-azure"],
+                        "match_type": "direct",
+                        "semantic_normalizations": [],
+                        "reason": "Target capability.",
+                    },
+                ],
+                "removed_entries": [],
+                "warning_dispositions": [],
+            }
+
+            report = audit_resume(resume, manifest, ledger)
+            self.assertEqual(report["verdict"], "FAIL")
+            self.assertIn(
+                "UNSUPPORTED_PRESENTATION_TERM",
+                {finding["code"] for finding in report["findings"]},
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

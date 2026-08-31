@@ -22,6 +22,7 @@ from scripts.resume_shared import (  # noqa: E402
     entity_anchor,
     iter_resume_text_fields,
     load_json_file,
+    normalize_skill_items,
     slugify_token,
     stable_identifier,
     validate_resume_content,
@@ -398,7 +399,38 @@ def rebuild_tailoring_manifest(workspace: Path) -> dict[str, Any]:
     working_fields = list(iter_resume_text_fields(resume))
     entries: list[dict[str, Any]] = []
     unresolved: list[str] = []
+    skills_list = resume.get("skills", [])
+    skill_category_re = re.compile(r"^skills\[(\d+)\]\.category$")
     for path, text, entity_type, entity_key in working_fields:
+        cat_match = skill_category_re.match(path)
+        if cat_match:
+            group_idx = int(cat_match.group(1))
+            if (
+                isinstance(skills_list, list)
+                and group_idx < len(skills_list)
+                and isinstance(skills_list[group_idx], dict)
+                and isinstance(skills_list[group_idx].get("items"), list)
+            ):
+                item_paths = [
+                    f"skills[{group_idx}].items[{j}]"
+                    for j in range(len(normalize_skill_items(skills_list[group_idx]["items"])))
+                ]
+                entries.append(
+                    {
+                        "projection_path": path,
+                        "operation": "REWORD",
+                        "rendered_text": text,
+                        "binding_mode": "presentation",
+                        "entity_id": None,
+                        "source_claim_ids": [],
+                        "grouped_item_paths": item_paths,
+                        "match_type": "direct",
+                        "semantic_normalizations": [],
+                        "reason": "Target-specific Skill Presentation Group label.",
+                    }
+                )
+                continue
+
         matches = [
             (entity_id, claim)
             for entity_id, claim in active_claims
@@ -430,6 +462,7 @@ def rebuild_tailoring_manifest(workspace: Path) -> dict[str, Any]:
                 "projection_path": path,
                 "operation": operation,
                 "rendered_text": text,
+                "binding_mode": "single_entity",
                 "entity_id": entity_id,
                 "source_claim_ids": claim_ids,
                 "match_type": "direct",

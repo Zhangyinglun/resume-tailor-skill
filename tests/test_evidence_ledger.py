@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import tempfile
 import unittest
@@ -15,6 +16,7 @@ from scripts.evidence_ledger_manager import (
     revoke_claim,
     synchronize_source,
 )
+from scripts.resume_shared import write_json_file
 
 
 def sample_resume() -> dict[str, Any]:
@@ -341,6 +343,57 @@ class EvidenceLedgerTests(unittest.TestCase):
             self.assertEqual(
                 promoted["provenance"]["original_excerpt"], "这是候选人亲自确认的原话摘录"
             )
+
+    def test_manifest_rebuild_with_itemized_skills_creates_presentation_and_item_entries(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            source_resume = sample_resume()
+            source_resume["skills"] = [
+                {"category": "Languages", "items": ["Python", "Go"]}
+            ]
+            initialize_workspace(workspace, source_resume)
+
+            working = copy.deepcopy(source_resume)
+            working["skills"] = [
+                {
+                    "category": "Backend & Storage",
+                    "items": ["Python", "Go"],
+                }
+            ]
+            write_json_file(workspace / "cache" / "resume-working.json", working)
+
+            rebuilt = rebuild_tailoring_manifest(workspace)
+            manifest = rebuilt["manifest"]
+            entries_by_path = {entry["projection_path"]: entry for entry in manifest["entries"]}
+
+            category_entry = entries_by_path.get("skills[0].category")
+            self.assertIsNotNone(category_entry)
+            assert category_entry is not None
+            self.assertEqual(category_entry["binding_mode"], "presentation")
+            self.assertEqual(
+                category_entry["grouped_item_paths"],
+                ["skills[0].items[0]", "skills[0].items[1]"],
+            )
+            self.assertIsNone(category_entry["entity_id"])
+            self.assertEqual(category_entry["source_claim_ids"], [])
+
+            item0_entry = entries_by_path.get("skills[0].items[0]")
+            self.assertIsNotNone(item0_entry)
+            assert item0_entry is not None
+            self.assertEqual(item0_entry["binding_mode"], "single_entity")
+            self.assertEqual(item0_entry["rendered_text"], "Python")
+            self.assertTrue(len(item0_entry["source_claim_ids"]) >= 1)
+
+            item1_entry = entries_by_path.get("skills[0].items[1]")
+            self.assertIsNotNone(item1_entry)
+            assert item1_entry is not None
+            self.assertEqual(item1_entry["binding_mode"], "single_entity")
+            self.assertEqual(item1_entry["rendered_text"], "Go")
+            self.assertTrue(len(item1_entry["source_claim_ids"]) >= 1)
+
+            self.assertEqual(rebuilt["unresolved_paths"], [])
 
 
 if __name__ == "__main__":
