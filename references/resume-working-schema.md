@@ -93,7 +93,16 @@ This is a pure display projection with no internal IDs:
   "name": "FULL NAME",
   "contact": "City | Phone | Email | LinkedIn",
   "summary": "Evidence-grounded summary.",
-  "skills": [{"category": "Languages", "items": "Python, Go"}],
+  "skills": [
+    {
+      "category": "AI Platforms & Tooling",
+      "items": ["Azure OpenAI", "MCP", "RAG", "Evals"]
+    },
+    {
+      "category": "Backend & Distributed Systems",
+      "items": ["Python", "Go", "Redis", "Kafka"]
+    }
+  ],
   "experience": [{
     "company": "Company",
     "title": "Title",
@@ -113,7 +122,24 @@ This is a pure display projection with no internal IDs:
 }
 ```
 
-Required keys are `name`, `contact`, `summary`, `skills`, `experience`, and `education`. Optional sections are arrays when present. Every nested display value is a string except arrays and objects.
+Required keys are `name`, `contact`, `summary`, `skills`, `experience`, and `education`. Optional sections are arrays when present.
+
+### Skills Structure & Compatibility
+
+- **Array items format (standard)**: `skills[i].items` is an array of display strings (`["Azure OpenAI", "MCP"]`), allowing item-level evidence binding.
+- **Legacy string format (backward compatible)**: `skills[i].items` as a comma-separated string (`"Python, Go"`) is automatically normalized into an item array during ingestion, planning, and factual auditing.
+- **Presentation Groups**: Skills must contain 2–4 Skill Presentation Groups, rendering to 2–4 body lines under the preferred layout.
+
+---
+
+## Model Planning Artifacts
+
+Host models produce intermediate planning and language files before materializing `resume-working.json` and `resume-changes.json`. See `references/projection-planning-protocol.md` for complete schemas.
+
+- **Projection Plan** (`projection-plan.json`): Records target-specific importance allocations (`critical`, `important`, `supporting`), Content Intents with claim/capability links, 2–4 dynamic Skill Presentation Groups, and optional section decisions.
+- **Language Output** (`projection-language.json`): Contains the model-rendered technical text for each `intent_id`, accompanied by style actions and a meaning-preservation self-check.
+
+---
 
 ## Tailoring Manifest: `resume-changes.json`
 
@@ -127,6 +153,7 @@ The manifest covers every non-empty substantive leaf in the Tailored Resume, inc
   "entries": [
     {
       "projection_path": "experience[0].bullets[0]",
+      "binding_mode": "single_entity",
       "operation": "REWORD",
       "rendered_text": "Implemented a Redis-backed cache for document retrieval.",
       "entity_id": "experience-...",
@@ -139,18 +166,52 @@ The manifest covers every non-empty substantive leaf in the Tailored Resume, inc
         }
       ],
       "reason": "Aligns an evidenced capability to the target terminology."
+    },
+    {
+      "projection_path": "skills[0].items[0]",
+      "binding_mode": "single_entity",
+      "operation": "KEEP",
+      "rendered_text": "Azure OpenAI",
+      "entity_id": "experience-apex-systems",
+      "source_claim_ids": ["claim-apex-azure-openai"],
+      "match_type": "direct",
+      "reason": "Direct evidence for target P1 capability."
+    },
+    {
+      "projection_path": "skills[0].category",
+      "binding_mode": "presentation",
+      "operation": "REWORD",
+      "rendered_text": "AI Platforms & Tooling",
+      "category_items": [
+        "skills[0].items[0]",
+        "skills[0].items[1]",
+        "skills[0].items[2]"
+      ],
+      "reason": "Presentation group organizing AI platform and tool-calling skills."
     }
   ],
-"removed_entries": [],
-"warning_dispositions": [
-{
-"finding": "bullet_density",
-"status": "accepted",
-"reason": "Two-entry resume; density target not applicable."
-}
-]
+  "removed_entries": [
+    {
+      "source_path": "awards[0]",
+      "entity_id": "award-academic-scholarship",
+      "operation": "REMOVE",
+      "reason": "Omitted standalone award to prioritize P1/P2 AI platform evidence."
+    }
+  ],
+  "warning_dispositions": [
+    {
+      "finding": "bullet_density",
+      "status": "accepted",
+      "reason": "Two-entry resume; density target not applicable."
+    }
+  ]
 }
 ```
+
+### Binding Modes
+
+- `single_entity` (default): Used for summary, experience, bullets, and skill items (`skills[i].items[j]`). Requires `entity_id` and `source_claim_ids` belonging strictly to that single entity.
+- `presentation`: Allowed exclusively for `skills[i].category`. Documents the display category grouping and constituent item paths without masquerading as an Evidence Entity.
 
 `warning_dispositions` resolves advisory content-QA findings (for example `bullet_density`). Each entry records the check `name` in `finding`, sets `status` to `accepted`, and supplies a non-empty `reason`. A disposition applies only to advisory content warnings; it can never suppress a factual-audit finding.
 

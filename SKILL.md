@@ -78,24 +78,28 @@ python3 "$RESUME_TAILOR_DIR/scripts/evidence_ledger_manager.py" ingest \
 
 Do not add a second confirmation turn. Use the candidate's exact answer excerpt as provenance. Use `revoke` or `supersedes` when correcting an earlier claim.
 
-### 4. Generate the Projection and Manifest
+### 4. Produce Projection Plan and Language Output
 
-1. Read `references/optimization-actions.md` and `references/resume-language-quality.md`.
-2. Produce `cache/resume-working.json` as a pure display projection without internal IDs.
-3. Produce `cache/resume-changes.json` in the same operation. Cover every non-empty substantive field and all additions, removals, merges, and reorderings.
-4. Declare strict semantic normalizations explicitly; they cannot add tools, scope, metrics, ownership, environment, or completion state.
-5. For regeneration or manual edits, rebuild exact links:
+The host model acts as the **Projection Planner** and **Resume Language Optimizer**. Packaged Python scripts do not call external model APIs.
+
+1. Read `references/projection-planning-protocol.md`, `references/resume-working-schema.md`, and `references/resume-language-quality.md`.
+2. Produce `USER_WORKSPACE/cache/projection-plan.json` (status `ready` or `needs_clarification`).
+3. If clarification is needed, present the 1–5 questions, ingest answers via `evidence_ledger_manager.py`, and update the plan to `ready`.
+4. As the **Resume Language Optimizer**, convert each Content Intent in the plan into concise, recruiter-facing technical prose in `USER_WORKSPACE/cache/projection-language.json`.
+5. Materialize display projection and manifest deterministically:
 
 ```bash
-python3 "$RESUME_TAILOR_DIR/scripts/evidence_ledger_manager.py" manifest-rebuild \
-  --workspace "$USER_WORKSPACE"
+python3 "$RESUME_TAILOR_DIR/scripts/projection_plan_manager.py" build \
+  --workspace "$USER_WORKSPACE" \
+  --plan "$USER_WORKSPACE/cache/projection-plan.json" \
+  --language "$USER_WORKSPACE/cache/projection-language.json"
 ```
 
-Unresolved rebuilt paths require evidence or wording correction; never invent a manifest link.
+This validates fingerprints, claim bindings, and single-entity constraints, outputting `cache/resume-working.json` and `cache/resume-changes.json`.
 
-### 5. Audit, Render, and Publish
+### 5. Audit Factual Integrity
 
-Run the factual audit directly when reviewing the projection:
+Verify complete traceability and zero claim drift before any PDF rendering:
 
 ```bash
 python3 "$RESUME_TAILOR_DIR/scripts/audit_factual_integrity.py" \
@@ -105,7 +109,23 @@ python3 "$RESUME_TAILOR_DIR/scripts/audit_factual_integrity.py" \
   --base "$USER_WORKSPACE/cache/base-resume.json"
 ```
 
-Generate only through the mandatory-gate CLI:
+### 6. Preferred Render and Content Fit Feedback
+
+Render a temporary PDF under the preferred readable layout and inspect physical geometry:
+
+```bash
+python3 "$RESUME_TAILOR_DIR/scripts/check_pdf_geometry.py" \
+  --pdf "$USER_WORKSPACE/cache/temp-render.pdf" \
+  --json
+```
+
+- Evaluate **Content Fit Feedback** (`verdict`: `fit`, `overflow`, or `underfill`).
+- If `overflow` or `underfill`, revise `projection-plan.json` (revision 2 or 3) and `projection-language.json` following the priority order in `references/projection-planning-protocol.md`.
+- Content revisions are limited to at most **3 iterations**. Unchanged intents must keep identical rendered text.
+
+### 7. Layout Auto-fit and Generate Final PDF
+
+Once content fits, compile through the publication gate with layout-only auto-tuning:
 
 ```bash
 python3 "$RESUME_TAILOR_DIR/scripts/generate_final_resume.py" \
@@ -118,15 +138,14 @@ python3 "$RESUME_TAILOR_DIR/scripts/generate_final_resume.py" \
   --auto-fit
 ```
 
-- Exit `0`: all blocking gates passed and the Candidate PDF replaced the Accepted Resume after archiving the prior version.
-- Exit `1`: invalid input or factual audit failure; no render is published.
-- Exit `2`: unresolved content warning or PDF/geometry QA failure; prior Accepted Resumes remain intact and rendered failures are retained under `rejected/` when available.
+- Exit `0`: all blocking gates passed; candidate PDF published as Accepted Resume.
+- Exit `1`: factual audit failure or invalid input; no PDF published.
+- Exit `2`: PDF QA failure or geometry violation; previous Accepted Resume remains intact, and failed candidate is preserved in `rejected/`.
+- Layout auto-fit adjusts font size, margins, and spacing only; it never mutates content. Third-party AI detectors do not enter QA.
 
-Resolve a content warning by correcting wording, ingesting evidence, revoking/superseding an invalid claim, or recording a reasoned `warning_dispositions` entry in the manifest.
+### 8. Report and Visually Verify
 
-### 6. Report and Visually Verify
-
-Generate the combined report:
+Generate the combined quality report:
 
 ```bash
 python3 "$RESUME_TAILOR_DIR/scripts/generate_quality_report.py" \
@@ -142,9 +161,10 @@ Load the host PDF skill and inspect every rendered page. Report factual coverage
 
 ## References
 
+- `references/projection-planning-protocol.md`: model schemas, stage contracts, budgeting rules, and examples.
 - `references/execution-checklist.md`: exhaustive completion criteria and failure handling.
 - `references/resume-working-schema.md`: Source Snapshot, Ledger, Profile, JD, projection, and manifest contracts.
 - `references/ats-keywords-strategy.md`: dual-axis capability matching and semantic reuse boundaries.
 - `references/optimization-actions.md`: manifest action codes.
 - `references/resume-language-quality.md`: concise evidence-preserving language checks.
-- `references/prompt-recipes.md`: five-stage agent recipes and recovery branches.
+- `references/prompt-recipes.md`: prompt recipes for Projection Planner and Language Optimizer.

@@ -29,11 +29,21 @@
 
 ## Tailor and Build the Manifest
 
-1. Generate `resume-working.json` only from active `sourced` and `candidate_confirmed` claims.
-2. Generate `resume-changes.json` in the same operation.
-3. Cover every non-empty substantive field and record additions, deletions, merges, and reorderings.
-4. Bind metrics to claims inside the same Evidence Entity.
-5. For manual edits, rebuild only exact claim links; unresolved fields block generation.
+1. As Projection Planner, produce `cache/projection-plan.json` bound strictly to active `sourced` and `candidate_confirmed` claims.
+2. Ensure all formal employment entities from the Source Snapshot are retained with 1–5 bullets.
+3. Form 2–4 Skill Presentation Groups with item-level claim bindings, targeting 2–4 rendered body lines.
+4. As Resume Language Optimizer, produce `cache/projection-language.json` with technical register and verified meaning check.
+5. Materialize and validate via `projection_plan_manager.py build`, generating `resume-working.json` and `resume-changes.json`.
+6. Ensure every substantive leaf has an exact manifest entry (`single_entity` for content/items, `presentation` for skill category).
+7. For manual edits, rebuild only exact claim links; unresolved fields block generation.
+
+## Content Fit & Geometry Feedback
+
+1. Render a temporary candidate PDF with the preferred readable layout.
+2. Run `check_pdf_geometry.py` to obtain physical layout feedback (`verdict`: `fit`, `overflow`, `underfill`).
+3. If overflow or underfill occurs, revise `projection-plan.json` and `projection-language.json` following the priority order in `references/projection-planning-protocol.md`.
+4. Limit content revisions to at most 3 rounds.
+5. Maintain strictly identical `rendered_text` for unchanged `intent_id` records across revisions.
 
 ## Content Quality
 
@@ -56,11 +66,11 @@ The audit blocks publication on incomplete traceability, metric mismatch, cross-
 ## Generate and Validate
 
 1. Generate with `generate_final_resume.py --auto-fit` and explicit evidence/manifest paths.
-2. Keep auto-fit limited to font, spacing, and margins.
+2. Keep auto-fit limited to font, spacing, and margins. It never modifies content.
 3. Treat A4 size, one page, extractable text, required sections, safe minimum margins, complete contact information, placeholder absence, and factual integrity as blocking checks.
 4. Use `pdfplumber` coordinates for line geometry; do not estimate PDF wraps from source character counts.
 5. If QA fails, inspect the Candidate PDF under `resume_output/rejected/`, revise the reported issue, and retry up to three times.
-6. Preserve the previous Accepted Resume whenever a new Candidate PDF fails.
+6. Preserve the previous Accepted Resume whenever a new Candidate PDF fails. Third-party AI detectors do not enter QA.
 
 ## Visual QA
 

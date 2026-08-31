@@ -45,6 +45,18 @@ class SkillMetadataTests(unittest.TestCase):
         ] if vendor_root.exists() else []
         self.assertEqual(bundled_files, [])
 
+    def test_skill_contains_model_projection_workflow_terms(self) -> None:
+        skill_path = self.repo_root / "SKILL.md"
+        skill_text = skill_path.read_text(encoding="utf-8")
+        for term in (
+            "projection-plan.json",
+            "projection-language.json",
+            "Resume Language Optimizer",
+            "Content Fit Feedback",
+            "projection_plan_manager.py",
+        ):
+            self.assertIn(term, skill_text)
+
 
 if __name__ == "__main__":
     unittest.main()

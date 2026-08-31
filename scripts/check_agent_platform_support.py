@@ -26,6 +26,7 @@ EXPECTED_ASSETS = (
     Path("requirements.txt"),
     Path("scripts/extract_resume_text.py"),
     Path("scripts/resume_cache_manager.py"),
+    Path("scripts/projection_plan_manager.py"),
     Path("scripts/generate_final_resume.py"),
     Path("scripts/check_pdf_quality.py"),
     Path("scripts/check_pdf_geometry.py"),
@@ -34,6 +35,7 @@ EXPECTED_ASSETS = (
     Path("scripts/audit_factual_integrity.py"),
     Path("scripts/generate_quality_report.py"),
     Path("references/resume-language-quality.md"),
+    Path("references/projection-planning-protocol.md"),
 )
 
 Runner = Callable[[list[str], Path, Optional[dict[str, str]]], dict[str, Any]]
@@ -165,6 +167,7 @@ def _baseline_checks(repo_root: Path, runner: Runner) -> dict[str, Any]:
         external_cwd = Path(temp_dir)
         for script_name in (
             "resume_cache_manager.py",
+            "projection_plan_manager.py",
             "check_content_quality.py",
             "generate_quality_report.py",
             "extract_resume_text.py",

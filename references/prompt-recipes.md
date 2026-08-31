@@ -35,20 +35,58 @@ Do not require another confirmation turn. Never transfer metrics between entitie
 
 Completion criterion: each factual answer is represented by an active claim or an explicit unsupported Gap; conflicting older claims are revoked or superseded rather than overwritten.
 
-## 4. Tailored Projection and Manifest
+## 4. Model-Driven Projection Planning & Language Optimization
+
+Model-driven tailoring is executed in two independent stages by the host model.
+
+### 4.1 Projection Planner Recipe
 
 ```text
-Generate the strongest truthful resume projection for the target JD using active sourced and candidate-confirmed claims.
-Create resume-working.json as a clean display projection and resume-changes.json as a complete field-level manifest.
-Cover summary, contact, skills, titles, project names and tech, bullets, education, certifications, awards, additions, deletions, merges, and reorderings.
+Act as the Projection Planner for this candidate against the target JD.
+Read jd-analysis.json, candidate-evidence.json, candidate-profile.json, and base-resume.json.
+Budget content for a single-page A4 resume:
+- Retain all formal employment entities from the Source Snapshot (1–5 bullets each).
+- Assign importance (critical: 3–5 bullets, important: 2–3 bullets, supporting: 1 bullet).
+- Formulate Content Intents bound strictly to active sourced or candidate_confirmed claim IDs and JD capability IDs. Never combine claims across different entities in one intent.
+- Plan 2–4 dynamic Skill Presentation Groups with item-level claim bindings.
+- Decide optional section inclusions or removals.
+- If critical P1/P2 evidence is missing, set status to "needs_clarification" with at most 5 targeted questions. Otherwise set status to "ready".
+Output the complete projection-plan.json adhering to references/projection-planning-protocol.md.
 ```
 
-Completion criterion: every non-empty substantive display field has exactly one manifest entry whose text matches the projection and whose claim IDs belong to the correct Evidence Entity.
+Completion criterion: `projection-plan.json` validates via `scripts/projection_plan_manager.py`, with exact fingerprints, formal experience coverage, valid claim links, and 2–4 Skill Presentation Groups.
+
+### 4.2 Resume Language Optimizer Recipe
+
+```text
+Act as the Resume Language Optimizer.
+Read projection-plan.json and candidate-evidence.json.
+Transform each Content Intent into concise, recruiter-facing technical resume text:
+- Use professional technical resume register (action verbs, direct technical descriptions, implicit third/first person without "I", "me", "my", "we").
+- Eliminate filler, buzzwords, negative parallelism, forced tricolons, and unsupported tail participle clauses.
+- Preserve exact technical terminology, canonical tool names, metrics, scope, environment, and ownership.
+- Perform a strict meaning-preservation self-check on every item (facts_added: [], facts_removed: [], metrics_changed: [], ownership_changed: false).
+Output the complete projection-language.json adhering to references/projection-planning-protocol.md.
+```
+
+Completion criterion: `projection-language.json` has 1:1 intent correspondence with the plan, zero chatbot/placeholder/first-person phrasing, verified meaning check, and successfully builds working projection and manifest via `projection_plan_manager.py build`.
+
+### 4.3 Content Fit Revision Recipe
+
+```text
+Review the physical geometry feedback from the temporary render (check_pdf_geometry.py).
+If the verdict is "overflow" or "underfill", produce Revision 2 or 3 of projection-plan.json and projection-language.json:
+- Follow the approved priority order (prune low-value optional sections, drop low-value skills, merge overlapping intents, compress supporting experience).
+- Keep rendered_text strictly identical for any unchanged intent_id.
+- Limit content revisions to at most 3 rounds.
+```
+
+Completion criterion: revised plan and language build cleanly, resolve geometry issues without unrelated wording drift, and pass factual audit.
 
 ## 5. Mandatory Gates and Publication
 
 ```text
-Run factual audit before layout or rendering. Then run content QA, render with layout-only auto-fit, run PDF QA including real geometry checks, and inspect the rendered page visually.
+Run factual audit before layout or rendering. Then render with layout-only auto-fit, run PDF QA including real geometry checks, and inspect the rendered page visually.
 Publish only when all blocking gates pass. Preserve the prior Accepted Resume if the Candidate PDF fails.
 ```
 

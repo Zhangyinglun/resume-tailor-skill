@@ -12,6 +12,7 @@ class ExternalEntrypointTests(unittest.TestCase):
         repo_root = Path(__file__).resolve().parent.parent
         scripts = (
             "resume_cache_manager.py",
+            "projection_plan_manager.py",
             "check_content_quality.py",
             "generate_quality_report.py",
             "extract_resume_text.py",
