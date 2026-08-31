@@ -1,4 +1,4 @@
-# Resume Tailor Domain
+# MonkeyResume Domain
 
 The domain language for evidence-based resume tailoring, long-term fact ledger management, and deterministic factual auditing.
 

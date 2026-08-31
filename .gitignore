@@ -8,7 +8,6 @@ __pycache__/
 cache/
 _deps/
 resume_output/**/*.pdf
-/.opencode/plans/
 /*.pdf
 
 # IDE files
@@ -21,7 +20,5 @@ resume_output/**/*.pdf
 # Personal data
 raw_resume.txt
 
-# Claude Code local config (keep .claude/commands/ tracked)
-.claude/settings.local.json
-.claude/worktrees/
+# Local agent work
 .local/agent-work/

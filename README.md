@@ -1,78 +1,108 @@
-# resume-tailor
+# MonkeyResume
 
-[中文说明](README.zh-CN.md)
+[简体中文](README.zh-CN.md)
 
-A personal AI Skill for truthfully tailoring a resume to a job description or target role and delivering a verified single-page A4 PDF.
+**Evidence-grounded resume tailoring with traceable claims and verified PDF delivery.**
 
-## Install
+MonkeyResume is an open-source Agent Skill that turns a candidate's real experience into a role-specific resume without inventing skills, ownership, metrics, or outcomes. It separates evidence, planning, language, layout, and publication into explicit stages so every substantive resume claim remains reviewable.
 
-Requires Python 3.9 or newer.
+## Why MonkeyResume
+
+Most AI resume workflows begin with rewriting and check accuracy afterward. MonkeyResume begins with a durable evidence ledger and blocks publication when a claim cannot be traced back to active evidence.
+
+- **Evidence before wording** — candidate facts live in a cross-JD Evidence Ledger with source excerpts and verification states.
+- **JD-aware selection** — requirements are classified as direct, semantically equivalent, transferable, or unsupported before content is drafted.
+- **Bounded generation** — the model writes from evidence-bound Content Intents rather than an unconstrained resume prompt.
+- **Auditable changes** — a field-level manifest ties substantive output back to claim IDs and explains additions, rewrites, merges, and removals.
+- **Protected delivery** — factual, content, PDF, and geometry gates run before a candidate replaces the last accepted resume.
+
+## How It Works
+
+1. **Capture the source** — extract a PDF, DOCX, Markdown, or text resume into an immutable Source Snapshot.
+2. **Build the ledger** — normalize experience into entity-bound Atomic Claims and preserve candidate confirmations across job descriptions.
+3. **Analyze the role** — map JD Capabilities to evidence, surface genuine gaps, and ask only high-value clarification questions.
+4. **Plan and write** — select evidence in a Projection Plan, then produce concise recruiter-facing language without expanding claim scope.
+5. **Audit and publish** — verify factual traceability, render the PDF, measure its physical geometry, and publish only after every blocking gate passes.
+
+## Quick Start
+
+MonkeyResume requires Python 3.9 or newer.
+
+The GitHub repository still uses its legacy URL during the rename transition. Clone it into the new local directory name:
 
 ```bash
-git clone https://github.com/Zhangyinglun/resume-tailor-skill.git
-cd resume-tailor-skill
+git clone https://github.com/Zhangyinglun/resume-tailor-skill.git ~/Projects/monkey-resume
+cd ~/Projects/monkey-resume
 python3 -m pip install -r requirements.txt
-python3 scripts/check_agent_platform_support.py
 ```
 
-Register the repository with your agent:
+Register the repository in the shared Agent Skills directory:
 
-| Platform | Location or workflow |
-|---|---|
-| Codex | Copy to `$CODEX_HOME/skills/resume-tailor/`; the default is `~/.codex/skills/resume-tailor/`. |
-| Claude Code | Open this repository so `CLAUDE.md` is loaded. Use a separate directory as the personal resume workspace. |
-| OpenCode | Copy to `~/.config/opencode/skills/resume-tailor/`. |
+```bash
+mkdir -p ~/.agents/skills
+ln -s ~/Projects/monkey-resume ~/.agents/skills/monkey-resume
+```
 
-## Use
-
-Provide an existing resume plus a JD or target direction, then ask:
+Then provide a resume and a job description or target direction:
 
 ```text
-Use $resume-tailor to tailor my resume for this role and generate a verified single-page PDF.
+Use $monkey-resume to tailor my resume for this role and generate a verified single-page PDF.
 ```
 
-The Skill keeps personal data in the active user workspace:
+## Keep Personal Data Outside the Skill
+
+MonkeyResume is a reusable package. Candidate data and generated files belong in a separate user workspace passed explicitly to the scripts.
 
 ```text
-cache/base-resume.json             immutable Source Snapshot
-cache/candidate-evidence.json       cross-JD Candidate Evidence Ledger
-cache/candidate-profile.json        long-term presentation preferences
-cache/jd-analysis.json              dual-axis JD Capability analysis
-cache/resume-working.json           current Tailored Resume projection
-cache/resume-changes.json           field-level Tailoring Manifest
-resume_output/
+USER_WORKSPACE/
+├── cache/
+│   ├── base-resume.json          immutable Source Snapshot
+│   ├── candidate-evidence.json   cross-JD Candidate Evidence Ledger
+│   ├── candidate-profile.json    long-term presentation preferences
+│   ├── jd-analysis.json          dual-axis JD Capability analysis
+│   ├── projection-plan.json      evidence-bound content decisions
+│   ├── projection-language.json  final language for each Content Intent
+│   ├── resume-working.json       current Tailored Resume projection
+│   └── resume-changes.json       field-level Tailoring Manifest
+└── resume_output/
 ```
 
-Run bundled scripts from the installed Skill directory while passing the user workspace explicitly. The package directory itself remains free of personal runtime data.
+The Skill repository contains reusable runtime resources plus generic documentation, tests, and CI used to maintain them.
 
-## Safety Model
+## Safety and Quality Gates
 
-- Never fabricate experience, ownership, tools, dates, or metrics.
-- Reuse prior candidate-confirmed evidence across JDs so clarification questions decrease over time.
-- Require a complete field-level manifest and factual audit before rendering.
-- Auto-fit changes layout only; PDF QA uses rendered word coordinates.
-- Generate into a staging directory and publish only after all blocking gates pass.
-- Preserve accepted PDFs when a new candidate fails; rejected candidates go to `resume_output/rejected/`.
-- Produce A4, one-page, extractable-text output by default.
+- Candidate evidence is the authority; the JD can change emphasis, never history.
+- Unsupported requirements stay visible as gaps instead of becoming fabricated resume claims.
+- Every substantive projected field must bind to active evidence from a single entity.
+- The factual integrity audit runs before rendering and again inside final generation.
+- Content revisions are limited and explicit; layout auto-fit changes spacing, margins, and font size only.
+- PDFs are built in staging, checked for extractable text and one-page A4 geometry, then published transactionally.
+- A failed candidate is preserved under `resume_output/rejected/`; it does not overwrite the last Accepted Resume.
+- Visual verification remains a required host-agent step before the final PDF is reported as visually verified.
 
-## Development Checks
+## Package Layout
+
+```text
+SKILL.md                 Agent workflow and publication contract
+AGENTS.md                Client-neutral repository development rules
+scripts/                 Evidence, projection, audit, and PDF tooling
+templates/               ReportLab layout and design tokens
+references/              Schemas and conditional workflow guidance
+tests/                   Regression and end-to-end tests
+```
+
+## Development
+
+Install development dependencies and run the complete validation suite:
 
 ```bash
 python3 -m pip install -r requirements-dev.txt
+skills-ref validate .
 ruff check scripts templates tests
 python3 -m unittest discover -s tests -v
-python3 /path/to/skill-creator/scripts/quick_validate.py .
 ```
 
-Core package layout:
-
-```text
-SKILL.md                 Agent workflow
-agents/openai.yaml       Codex UI metadata
-scripts/                 Cache, extraction, quality, and PDF tools
-templates/               ReportLab PDF layout
-references/              Conditional workflow guidance
-```
+See [the installation guide](docs/guide/installation.md) for validator setup and [the domain model](CONTEXT.md) before changing evidence, projection, or manifest behavior.
 
 ## License
 

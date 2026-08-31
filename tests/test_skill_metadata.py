@@ -18,7 +18,7 @@ class SkillMetadataTests(unittest.TestCase):
         self.assertGreaterEqual(len(parts), 3)
         frontmatter = yaml.safe_load(parts[1])
         self.assertEqual(set(frontmatter), {"name", "description"})
-        self.assertEqual(frontmatter["name"], "resume-tailor")
+        self.assertEqual(frontmatter["name"], "monkey-resume")
         self.assertLessEqual(len(content.splitlines()), 500)
 
         for relative_path in re.findall(r"`((?:references|scripts)/[^`]+)`", content):
@@ -28,15 +28,21 @@ class SkillMetadataTests(unittest.TestCase):
                 path_without_placeholder,
             )
 
-    def test_openai_metadata_matches_skill(self) -> None:
-        metadata = yaml.safe_load(
-            (self.repo_root / "agents" / "openai.yaml").read_text(encoding="utf-8")
+    def test_package_has_no_client_specific_adapters(self) -> None:
+        client_specific_paths = (
+            "CLAUDE.md",
+            ".claude",
+            ".opencode",
+            "agents/openai.yaml",
+            "install/agent-install.yaml",
+            "scripts/check_agent_platform_support.py",
         )
-        interface = metadata["interface"]
-        self.assertEqual(interface["display_name"], "Resume Tailor")
-        self.assertIn("$resume-tailor", interface["default_prompt"])
-        self.assertGreaterEqual(len(interface["short_description"]), 25)
-        self.assertLessEqual(len(interface["short_description"]), 64)
+        present = [
+            path
+            for path in client_specific_paths
+            if (self.repo_root / path).exists()
+        ]
+        self.assertEqual(present, [])
 
     def test_restricted_vendor_content_is_not_bundled(self) -> None:
         vendor_root = self.repo_root / "vendor"

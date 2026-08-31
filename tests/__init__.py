@@ -1,1 +1,1 @@
-"""Tests for resume-tailor."""
+"""Tests for MonkeyResume."""

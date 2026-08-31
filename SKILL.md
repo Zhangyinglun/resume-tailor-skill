@@ -1,9 +1,9 @@
 ---
-name: resume-tailor
+name: monkey-resume
 description: Tailor, review, regenerate, and validate resumes against a job description or target role. Use when the user provides a resume, CV, JD, target direction, or an existing resume-working.json and wants truthful ATS alignment, JD-driven clarification, long-term evidence reuse, content compression, language polishing, or a verified single-page A4 PDF.
 ---
 
-# Resume Tailor
+# MonkeyResume
 
 Build each resume as an auditable projection of the candidate's accumulated evidence. Ask fewer questions over time by reusing active prior claims and preferences.
 
@@ -19,7 +19,7 @@ Build each resume as an auditable projection of the candidate's accumulated evid
 
 ## Resolve Paths
 
-- `RESUME_TAILOR_DIR`: directory containing this `SKILL.md`.
+- `MONKEY_RESUME_DIR`: directory containing this `SKILL.md`.
 - `USER_WORKSPACE`: candidate workspace outside the Skill package.
 
 Enforce `1 USER_WORKSPACE = 1 Candidate`. Run scripts by absolute path and write all personalized cache, reports, renders, and PDFs under `USER_WORKSPACE`.
@@ -32,7 +32,7 @@ Enforce `1 USER_WORKSPACE = 1 Candidate`. Run scripts by absolute path and write
 2. Normalize it to `resume-working.json`:
 
 ```bash
-python3 "$RESUME_TAILOR_DIR/scripts/resume_cache_manager.py" init \
+python3 "$MONKEY_RESUME_DIR/scripts/resume_cache_manager.py" init \
   --workspace "$USER_WORKSPACE" \
   --input "$USER_WORKSPACE/cache/source-resume.txt"
 ```
@@ -40,7 +40,7 @@ python3 "$RESUME_TAILOR_DIR/scripts/resume_cache_manager.py" init \
 3. If no Candidate Evidence Ledger exists, initialize it:
 
 ```bash
-python3 "$RESUME_TAILOR_DIR/scripts/evidence_ledger_manager.py" init \
+python3 "$MONKEY_RESUME_DIR/scripts/evidence_ledger_manager.py" init \
   --workspace "$USER_WORKSPACE" \
   --source-json "$USER_WORKSPACE/cache/resume-working.json"
 ```
@@ -48,7 +48,7 @@ python3 "$RESUME_TAILOR_DIR/scripts/evidence_ledger_manager.py" init \
 4. If the workspace already represents this candidate, synchronize the new source instead:
 
 ```bash
-python3 "$RESUME_TAILOR_DIR/scripts/evidence_ledger_manager.py" sync \
+python3 "$MONKEY_RESUME_DIR/scripts/evidence_ledger_manager.py" sync \
   --workspace "$USER_WORKSPACE" \
   --source-json "$USER_WORKSPACE/cache/resume-working.json"
 ```
@@ -71,7 +71,7 @@ Synchronization preserves candidate-confirmed claims, archives removed source ev
 Convert the candidate's response into an input object containing entity-bound `claims` and cross-JD `preferences`, then run:
 
 ```bash
-python3 "$RESUME_TAILOR_DIR/scripts/evidence_ledger_manager.py" ingest \
+python3 "$MONKEY_RESUME_DIR/scripts/evidence_ledger_manager.py" ingest \
   --workspace "$USER_WORKSPACE" \
   --response-json "$USER_WORKSPACE/cache/candidate-response.json"
 ```
@@ -89,7 +89,7 @@ The host model acts as the **Projection Planner** and **Resume Language Optimize
 5. Materialize display projection and manifest deterministically:
 
 ```bash
-python3 "$RESUME_TAILOR_DIR/scripts/projection_plan_manager.py" build \
+python3 "$MONKEY_RESUME_DIR/scripts/projection_plan_manager.py" build \
   --workspace "$USER_WORKSPACE" \
   --plan "$USER_WORKSPACE/cache/projection-plan.json" \
   --language "$USER_WORKSPACE/cache/projection-language.json"
@@ -102,7 +102,7 @@ This validates fingerprints, claim bindings, and single-entity constraints, outp
 Verify complete traceability and zero claim drift before any PDF rendering:
 
 ```bash
-python3 "$RESUME_TAILOR_DIR/scripts/audit_factual_integrity.py" \
+python3 "$MONKEY_RESUME_DIR/scripts/audit_factual_integrity.py" \
   --resume "$USER_WORKSPACE/cache/resume-working.json" \
   --manifest "$USER_WORKSPACE/cache/resume-changes.json" \
   --evidence "$USER_WORKSPACE/cache/candidate-evidence.json" \
@@ -114,7 +114,7 @@ python3 "$RESUME_TAILOR_DIR/scripts/audit_factual_integrity.py" \
 Render a temporary PDF under the preferred readable layout and inspect physical geometry:
 
 ```bash
-python3 "$RESUME_TAILOR_DIR/scripts/check_pdf_geometry.py" \
+python3 "$MONKEY_RESUME_DIR/scripts/check_pdf_geometry.py" \
   --pdf "$USER_WORKSPACE/cache/temp-render.pdf" \
   --json
 ```
@@ -128,7 +128,7 @@ python3 "$RESUME_TAILOR_DIR/scripts/check_pdf_geometry.py" \
 Once content fits, compile through the publication gate with layout-only auto-tuning:
 
 ```bash
-python3 "$RESUME_TAILOR_DIR/scripts/generate_final_resume.py" \
+python3 "$MONKEY_RESUME_DIR/scripts/generate_final_resume.py" \
   --input-json "$USER_WORKSPACE/cache/resume-working.json" \
   --manifest-json "$USER_WORKSPACE/cache/resume-changes.json" \
   --evidence-json "$USER_WORKSPACE/cache/candidate-evidence.json" \
@@ -148,7 +148,7 @@ python3 "$RESUME_TAILOR_DIR/scripts/generate_final_resume.py" \
 Generate the combined quality report:
 
 ```bash
-python3 "$RESUME_TAILOR_DIR/scripts/generate_quality_report.py" \
+python3 "$MONKEY_RESUME_DIR/scripts/generate_quality_report.py" \
   --resume "$USER_WORKSPACE/cache/resume-working.json" \
   --jd-analysis "$USER_WORKSPACE/cache/jd-analysis.json" \
   --manifest "$USER_WORKSPACE/cache/resume-changes.json" \

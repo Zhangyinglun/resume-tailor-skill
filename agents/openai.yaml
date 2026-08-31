@@ -1,4 +1,0 @@
-interface:
-  display_name: "Resume Tailor"
-  short_description: "Tailor resumes and deliver a visually verified ATS PDF"
-  default_prompt: "Use $resume-tailor to tailor my resume for this role and generate a verified single-page PDF."

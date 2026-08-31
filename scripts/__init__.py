@@ -1,1 +1,1 @@
-"""Reusable resume-tailor command modules."""
+"""Reusable MonkeyResume command modules."""

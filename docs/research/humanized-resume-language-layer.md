@@ -2,7 +2,7 @@
 
 - 文档状态：已复核
 - 最后复核：2026-08-29
-- 适用范围：`resume-tailor` 中面向招聘官的英文 Summary、Experience/Project bullets 与 Skills 命名
+- 适用范围：`monkey-resume` 中面向招聘官的英文 Summary、Experience/Project bullets 与 Skills 命名
 - 不适用范围：规避 AI 检测器、制造虚假“人类错误”、改变候选人事实或写作成第一人称叙事
 
 ## 1. 结论

@@ -6,23 +6,37 @@ Use Python 3.9 or newer:
 
 ```bash
 python3 -m pip install -r requirements.txt
-python3 scripts/check_agent_platform_support.py
 ```
 
-The verification command checks Python, `reportlab`, `pdfplumber`, required package files, and whether script entry points work outside the repository directory. It exits nonzero when the baseline fails.
+Runtime dependencies include `reportlab` and `pdfplumber`. Keep candidate data and generated output outside the Skill directory.
 
 ## Agent Setup
 
-- Codex: copy the repository to `$CODEX_HOME/skills/resume-tailor/`, normally `~/.codex/skills/resume-tailor/`.
-- Claude Code: open the repository to load `CLAUDE.md`; use a separate personal resume workspace.
-- OpenCode: copy the repository to `~/.config/opencode/skills/resume-tailor/`.
+Register MonkeyResume once in the shared Agent Skills directory:
+
+```bash
+mkdir -p ~/.agents/skills
+ln -s /absolute/path/to/monkey-resume ~/.agents/skills/monkey-resume
+```
 
 No dependency Skills are vendored. PDF generation and text extraction use the open-source Python packages declared in `requirements.txt`.
+
+## Agent Skills Format Validation
+
+The official `skills-ref` validator currently requires Python 3.11 or newer. Install it from the Agent Skills specification repository, then validate a checkout or link whose directory name is `monkey-resume`:
+
+```bash
+python3.12 -m pip install "git+https://github.com/agentskills/agentskills.git@69ef37e9424c0a7ea9dd2293b559e43ec8176379#subdirectory=skills-ref"
+skills-ref validate /absolute/path/to/monkey-resume
+```
+
+The validator version is pinned to the same official revision used by CI. MonkeyResume itself continues to support Python 3.9 and newer.
 
 ## Development Validation
 
 ```bash
 python3 -m pip install -r requirements-dev.txt
+skills-ref validate .
 ruff check scripts templates tests
 python3 -m unittest discover -s tests -v
 ```

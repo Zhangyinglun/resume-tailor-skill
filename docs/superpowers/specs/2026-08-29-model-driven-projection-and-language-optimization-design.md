@@ -2,7 +2,7 @@
 
 - Status: Approved design, pending implementation plan
 - Date: 2026-08-29
-- Scope: `resume-tailor` Skill package
+- Scope: `monkey-resume` Skill package
 - Acceptance fixture: Yinglun Zhang targeting OpenAI Applied AI Engineer, Plugins
 
 ## 1. Context

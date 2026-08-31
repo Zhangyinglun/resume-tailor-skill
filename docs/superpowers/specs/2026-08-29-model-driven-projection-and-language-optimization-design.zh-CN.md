@@ -2,7 +2,7 @@
 
 - 状态：设计已批准，等待实施计划
 - 日期：2026-08-29
-- 范围：`resume-tailor` Skill 包
+- 范围：`monkey-resume` Skill 包
 - 验收样例：Yinglun Zhang 申请 OpenAI Applied AI Engineer, Plugins
 
 ## 1. 背景

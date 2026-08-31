@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Modern resume PDF template for resume-tailor skill."""
+"""Modern resume PDF template for the MonkeyResume skill."""
 
 from __future__ import annotations
 
