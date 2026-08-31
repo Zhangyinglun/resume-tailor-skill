@@ -32,7 +32,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from scripts.resume_shared import validate_resume_content  # noqa: E402
+from scripts.resume_shared import (  # noqa: E402
+    normalize_skill_items,
+    validate_resume_content,
+)
 from templates.design_tokens import DEFAULT_TOKENS, DesignTokens  # noqa: E402
 from templates.layout_settings import DEFAULT_SETTINGS, LayoutSettings  # noqa: E402
 
@@ -310,10 +313,13 @@ def generate_resume(
     # Skills
     _add_section(story, "TECHNICAL SKILLS", styles, accent, t)
     for skill in content_dict["skills"]:
-        story.append(Paragraph(
-            f"<b>{_safe_text(skill.get('category', 'Skill'))}:</b> {_safe_text(skill.get('items', ''))}",
-            styles["Body"],
-        ))
+        items = ", ".join(normalize_skill_items(skill.get("items", [])))
+        story.append(
+            Paragraph(
+                f"<b>{_safe_text(skill.get('category', ''))}:</b> {_safe_text(items)}",
+                styles["Body"],
+            )
+        )
 
     # Certifications (optional)
     if content_dict.get("certifications"):

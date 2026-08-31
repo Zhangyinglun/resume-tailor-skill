@@ -132,6 +132,28 @@ class PdfPipelineTests(unittest.TestCase):
             )
             self.assertIn("sparse_trailing_line_count", geometry_check["detail"])
 
+    def test_renderer_supports_itemized_skills(self) -> None:
+        from templates.modern_resume_template import generate_resume
+
+        assert pdfplumber is not None
+        resume = sample_resume()
+        resume["skills"] = [
+            {
+                "category": "AI Platforms & Tooling",
+                "items": ["Azure OpenAI", "MCP", "RAG"],
+            }
+        ]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with contextlib.redirect_stdout(io.StringIO()):
+                rendered_path = Path(
+                    generate_resume("skills-array.pdf", resume, base_dir=temp_dir)
+                )
+            self.assertTrue(rendered_path.exists())
+            with pdfplumber.open(rendered_path) as pdf:
+                text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+            self.assertIn("AI Platforms & Tooling", text)
+            self.assertIn("Azure OpenAI, MCP, RAG", text)
+
     def test_generator_blocks_when_mandatory_audit_inputs_are_missing(self) -> None:
         import scripts.generate_final_resume as cli
 

@@ -101,6 +101,20 @@ _EXPERIENCE_REQUIRED = ("company", "title", "dates", "bullets")
 _EDUCATION_REQUIRED = ("school", "degree", "dates")
 
 
+def normalize_skill_items(value: Any) -> list[str]:
+    """Return non-empty Skill display terms from list or legacy comma text."""
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(",") if item.strip()]
+    if isinstance(value, list):
+        items: list[str] = []
+        for index, item in enumerate(value):
+            if not isinstance(item, str) or not item.strip():
+                raise ValueError(f"Skill item at index {index} must be a non-empty string.")
+            items.append(item.strip())
+        return items
+    raise ValueError("Skill items must be a comma-delimited string or an array of strings.")
+
+
 def validate_resume_content(payload: dict[str, Any], *, require_non_empty: bool = False) -> None:
     """Validate resume JSON has required keys and correct types.
 
@@ -135,8 +149,14 @@ def validate_resume_content(payload: dict[str, Any], *, require_non_empty: bool 
                 raise ValueError(f"skills[{i}] missing required field: {field}")
         if not isinstance(entry["category"], str):
             raise ValueError(f"skills[{i}].category must be a str")
-        if not isinstance(entry["items"], str):
-            raise ValueError(f"skills[{i}].items must be a str")
+        items_value = entry["items"]
+        if not isinstance(items_value, (str, list)):
+            raise ValueError(f"skills[{i}].items must be a str or list")
+        normalized = normalize_skill_items(items_value)
+        if isinstance(items_value, list) and not normalized:
+            raise ValueError(f"skills[{i}].items must not be an empty array.")
+        if require_non_empty and not normalized:
+            raise ValueError(f"skills[{i}].items must be non-empty.")
 
     # -- Nested field validation for experience --
     for i, entry in enumerate(payload["experience"]):
@@ -308,6 +328,10 @@ def iter_resume_text_fields(
             entity_key = f"{section}[{index}]"
             for field in fields:
                 value = entry.get(field)
+                if section == "skills" and field == "items" and isinstance(value, list):
+                    for item_index, item in enumerate(normalize_skill_items(value)):
+                        yield f"{entity_key}.items[{item_index}]", item, "skill", entity_key
+                    continue
                 if isinstance(value, str) and value.strip():
                     yield f"{entity_key}.{field}", value, section.rstrip("s"), entity_key
             bullets = entry.get("bullets", [])
